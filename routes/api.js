@@ -4,7 +4,7 @@ const { Client } = require('tplink-smarthome-api');
 var express = require('express');
 var router = express.Router();
 var path = require('path');
-
+let hummus = require('hummus')
 
 //? pathname to check if error is opening.
 router.get('/adminui/errorcheck', function (req, res) {
@@ -12,10 +12,9 @@ router.get('/adminui/errorcheck', function (req, res) {
 
     db.all(sql, [], (err, rows) => {
         if (err) {
-            res.status(500).json({ "error": err.message });
-            return;
+            return res.status(500).json({ "error": err.message });
         }
-        res.status(200).json(rows);
+        return res.status(200).json(rows);
     });
 });
 
@@ -27,10 +26,9 @@ router.post('/adminui/errorsolve', function (req, res) {
 
     db.run(sql, [ErrorId], function (err) {
         if (err) {
-            res.status(500).json({ "error": err.message });
-            return;
+            return res.status(500).json({ "error": err.message });
         }
-        res.status(200).send('Error resolved');
+        return res.status(200).send('Error resolved');
     });
 });
 
@@ -41,10 +39,9 @@ router.get('/adminui/errorHistory', function (req, res) {
 
     db.all(sql, [], (err, rows) => {
         if (err) {
-            res.status(500).json({ "error": err.message });
-            return;
+            return res.status(500).json({ "error": err.message });
         }
-        res.status(200).json(rows);
+        return res.status(200).json(rows);
     });
 
 });
@@ -58,7 +55,7 @@ router.get('/adminui/roomStatus/:roomCode', function (req, res) {
             console.error('Error executing query:', err.message);
             return next(err);
         }
-        res.json(rows);
+        return res.json(rows);
     });
 
 });
@@ -73,8 +70,7 @@ router.post('/adminui/regChallenge', function (req, res) {
         db.run('BEGIN TRANSACTION', function (err) {
             if (err) {
                 console.error('Error starting transaction', err.message);
-                res.status(500).json({ success: false, message: 'Database error' });
-                return;
+                return res.status(500).json({ success: false, message: 'Database error' });
             }
 
             // Check if the group name exists
@@ -84,9 +80,8 @@ router.post('/adminui/regChallenge', function (req, res) {
             db.get(checkGroupSql, [GroupName], function (err, row) {
                 if (err) {
                     console.error('Error checking group name', err.message);
-                    res.status(500).json({ success: false, message: 'Database error' });
                     db.run('ROLLBACK');
-                    return;
+                    return res.status(500).json({ success: false, message: 'Database error' });
                 }
 
                 const addChallengeAndRoom = (groupId) => {
@@ -99,9 +94,8 @@ router.post('/adminui/regChallenge', function (req, res) {
                     db.get(checkActiveChallengesSql, [roomID], function (err, activeCountRow) {
                         if (err) {
                             console.error('Error checking active challenges', err.message);
-                            res.status(500).json({ success: false, message: 'Database error' });
                             db.run('ROLLBACK');
-                            return;
+                            return res.status(500).json({ success: false, message: 'Database error' });
                         }
 
                         const hasActiveChallenges = activeCountRow.ActiveCount > 0;
@@ -124,9 +118,8 @@ router.post('/adminui/regChallenge', function (req, res) {
                         db.run(addChallengeSql, addChallengeParams, function (err) {
                             if (err) {
                                 console.error('Error inserting challenge', err.message);
-                                res.status(500).json({ success: false, message: 'Database error' });
                                 db.run('ROLLBACK');
-                                return;
+                                return res.status(500).json({ success: false, message: 'Database error' });
                             }
 
                             // Insert a new room entry
@@ -138,9 +131,8 @@ router.post('/adminui/regChallenge', function (req, res) {
                             db.get(getMaxStatusSql, [roomID], function (err, result) {
                                 if (err) {
                                     console.error('Error retrieving max status', err.message);
-                                    res.status(500).json({ success: false, message: 'Database error' });
                                     db.run('ROLLBACK');
-                                    return;
+                                    return res.status(500).json({ success: false, message: 'Database error' });
                                 }
 
                                 const currentStatus = result.MaxStatus || 0;
@@ -164,20 +156,18 @@ router.post('/adminui/regChallenge', function (req, res) {
                                 db.run(addRoomSql, addRoomParams, function (err) {
                                     if (err) {
                                         console.error('Error inserting room', err.message);
-                                        res.status(500).json({ success: false, message: 'Database error' });
                                         db.run('ROLLBACK');
-                                        return;
+                                        return res.status(500).json({ success: false, message: 'Database error' });
                                     }
 
                                     db.run('COMMIT', function (err) {
                                         if (err) {
                                             console.error('Error committing transaction', err.message);
-                                            res.status(500).json({ success: false, message: 'Database error' });
-                                            return;
+                                            return res.status(500).json({ success: false, message: 'Database error' });
                                         }
 
                                         console.log(`Challenge and new room entry successfully added for room ${roomID}`);
-                                        res.status(200).json({ success: true, message: 'Challenge and new room entry successfully added' });
+                                        return res.status(200).json({ success: true, message: 'Challenge and new room entry successfully added' });
                                     });
                                 });
                             });
@@ -188,9 +178,8 @@ router.post('/adminui/regChallenge', function (req, res) {
                 if (row) {
                     if (!dupCheck) {
                         // Group name exists and dupCheck is not true, send a warning
-                        res.status(409).json({ success: false, message: 'Group name already exists. Set dupCheck to true to proceed.' });
                         db.run('ROLLBACK');
-                        return;
+                        return res.status(409).json({ success: false, message: 'Group name already exists. Set dupCheck to true to proceed.' });
                     }
 
                     // Use the existing GroupId
@@ -200,15 +189,14 @@ router.post('/adminui/regChallenge', function (req, res) {
                     const groupId = require('crypto').randomUUID();
 
                     const insertGroupSql = `
-                        INSERT INTO Groups (Name, GroupId, ChallengesCount, PlayerCount, WasCleared)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO Groups (Name, GroupId, ChallengesCount, PlayerCount, WasCleared , SnackState)
+                        VALUES (?, ?, ?, ?, ?,?)
                     `;
-                    db.run(insertGroupSql, [GroupName, groupId, 1, playerCount, 0], function (err) {
+                    db.run(insertGroupSql, [GroupName, groupId, 1, playerCount, 0, 0], function (err) {
                         if (err) {
                             console.error('Error inserting group', err.message);
-                            res.status(500).json({ success: false, message: 'Database error' });
                             db.run('ROLLBACK');
-                            return;
+                            return res.status(500).json({ success: false, message: 'Database error' });
                         }
 
                         // Proceed to add challenge and room
@@ -218,7 +206,7 @@ router.post('/adminui/regChallenge', function (req, res) {
             });
         });
     } else {
-        res.status(400).json({ success: false, message: 'Invalid data' });
+        return res.status(400).json({ success: false, message: 'Invalid data' });
     }
 });
 //! the pathname above is long!
@@ -274,7 +262,235 @@ router.delete('/adminui/rooms/delete/:ChallengeId', function (req, res) {
     });
 });
 
+//? Function to download files to use in the game
+router.get('/adminui/groups/list', (req, res) => {
+    const sql = 'SELECT * FROM Groups';
 
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            console.error('Error fetching rooms', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        return res.status(200).json({ success: true, data: rows });
+    });
+});
+
+
+router.get('/adminui/groups/:GroupId', (req, res) => {
+    let { GroupId } = req.params;
+    const sql = 'SELECT * FROM Groups WHERE GroupId = ?';
+
+    db.all(sql, [GroupId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching Challenges', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        return res.status(200).json({ success: true, data: rows });
+    });
+});
+
+
+router.get('/adminui/groups/:GroupId/getCertificate', (req, res) => {
+    const { GroupId } = req.params;
+    const getGroupSql = `SELECT * FROM Groups WHERE GroupId = ? AND WasCleared = '1'`;
+    db.get(getGroupSql, [GroupId], (err, row) => {
+        if (err) {
+            console.error('Error fetching Groups', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        if (!row) {
+            return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+
+        const date = new Date();
+        const d = ('0' + date.getDate()).slice(-2);
+        const unixTimestamp = Math.floor(date.getTime() / 1000);
+        const templateFilePath = path.join(__dirname, '../pdf/template.pdf');
+        const saveDestination = path.join(__dirname, '../pdf/output', `${unixTimestamp}.pdf`);
+        // フォントファイルをインポート
+        let { Name } = row;
+        try {
+            const pdfWriter = hummus.createWriterToModify(
+                templateFilePath,                    // 編集元PDFのパス
+                { modifiedFilePath: saveDestination } // 保存先パス
+            );
+            // 編集するページを取得(1ページ目を編集するため、2つ目の引数を0とする)
+            const pageModifier = new hummus.PDFPageModifier(pdfWriter, 0);
+            const font = pdfWriter.getFontForFile(path.join(__dirname, '../pdf/NotoSansJP-Regular.ttf'));
+            pageModifier.startContext().getContext().writeText(
+                Name, // 入力文字列
+                130, 570,      // 座標を入力 ページの左下端が(0,0)
+                {
+                    font: font,         // フォントの指定
+                    size: 35,           // 文字サイズの指定
+                    colorspace: "gray", // 色空間を"gray", "cmyk", "rgb"から選択
+                    color: 0x00     // カラーコード
+                }
+            );
+            pageModifier.startContext().getContext().writeText(
+                d,
+                510, 250,
+                {
+                    font: font,
+                    size: 30,
+                    colorspace: "rgb",
+                    color: 0x00
+                }
+            );
+            pageModifier.endContext().writePage();
+            pdfWriter.end();
+        }
+        catch (ex) {
+            return res.status(404).send('Failed to generate pdf:' + ex.message);
+        }
+
+
+        // Check if template file exists
+        fs.stat(saveDestination, (err, stats) => {
+            if (err || !stats.isFile()) {
+                return res.status(404).send('File not found');
+            }
+            // Update Group in the database
+            const updateGroupSql = `
+            UPDATE Groups 
+            SET WasCleared = CASE
+              WHEN WasCleared = '1' THEN '2'
+              ELSE WasCleared 
+            END
+            WHERE GroupId = ?`;
+
+            db.run(updateGroupSql, [GroupId], (err) => {
+                if (err) {
+                    console.error('Error updating Groups', err.message);
+                    return res.status(500).json({ success: false, message: 'Database error' });
+                }
+
+                // Send the PDF file as a response
+                return res.status(200).json({ success: true, filename: unixTimestamp + ".pdf" });
+            });
+            // Update Group in the database
+            // Send the PDF file as a response
+        });
+    });
+});
+
+
+router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
+    const { GroupId } = req.params;
+    const getGroupSql = `SELECT * FROM Groups WHERE GroupId = ? AND WasCleared = '2'`;
+    db.get(getGroupSql, [GroupId], (err, row) => {
+        if (err) {
+            console.error('Error fetching Groups', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        if (!row) {
+            return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+
+        const date = new Date();
+        const d = ('0' + date.getDate()).slice(-2);
+        const unixTimestamp = Math.floor(date.getTime() / 1000);
+        const templateFilePath = path.join(__dirname, '../pdf/template.pdf');
+        const saveDestination = path.join(__dirname, '../pdf/output', `${unixTimestamp}.pdf`);
+        // フォントファイルをインポート
+        let { Name } = row;
+        try {
+            const pdfWriter = hummus.createWriterToModify(
+                templateFilePath,                    // 編集元PDFのパス
+                { modifiedFilePath: saveDestination } // 保存先パス
+            );
+            // 編集するページを取得(1ページ目を編集するため、2つ目の引数を0とする)
+            const pageModifier = new hummus.PDFPageModifier(pdfWriter, 0);
+            const font = pdfWriter.getFontForFile(path.join(__dirname, '../pdf/NotoSansJP-Regular.ttf'));
+            pageModifier.startContext().getContext().writeText(
+                Name, // 入力文字列
+                130, 570,      // 座標を入力 ページの左下端が(0,0)
+                {
+                    font: font,         // フォントの指定
+                    size: 35,           // 文字サイズの指定
+                    colorspace: "gray", // 色空間を"gray", "cmyk", "rgb"から選択
+                    color: 0x00     // カラーコード
+                }
+            );
+            pageModifier.startContext().getContext().writeText(
+                d,
+                510, 250,
+                {
+                    font: font,
+                    size: 30,
+                    colorspace: "rgb",
+                    color: 0x00
+                }
+            );
+            pageModifier.endContext().writePage();
+            pdfWriter.end();
+        }
+        catch (ex) {
+            return res.status(404).send('Failed to generate pdf:' + ex.message);
+        }
+
+
+        // Check if template file exists
+        fs.stat(saveDestination, (err, stats) => {
+            if (err || !stats.isFile()) {
+                return res.status(404).send('File not found');
+            }
+
+            // Update Group in the database
+            return res.status(200).json({ success: true, filename: unixTimestamp + ".pdf" });
+            // Send the PDF file as a response
+
+        });
+    });
+});
+
+router.get('/adminui/groups/:GroupId/giveSnack', (req, res) => {
+    const { GroupId } = req.params;
+    // Update Group in the database
+    const updateGroupSql = `
+    UPDATE Groups 
+    SET SnackState = CASE
+    WHEN SnackState = '3' THEN '-1'
+    WHEN SnackState = '4' THEN '-1'
+    WHEN SnackState = '5' THEN '-1'
+    ELSE SnackState 
+    END
+    WHERE GroupId = ?`;
+
+    db.run(updateGroupSql, [GroupId], (err) => {
+        if (err) {
+            console.error('Error updating Groups', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        // Send the PDF file as a response
+        return res.status(200).json({
+            success: true,
+        });
+    });
+});
+
+//? Function to download files to use in the game
+router.get('/adminui/getpdf/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(__dirname, '../pdf/output', filename);
+    // Prevent directory traversal attacks
+    if (!filePath.startsWith(path.join(__dirname, '../pdf/output'))) {
+        return res.status(403).send('Forbidden');
+    }
+
+    // Check if file exists
+    fs.stat(filePath, (err, stats) => {
+        if (err || !stats.isFile()) {
+            return res.status(404).send('File not found');
+        }
+
+        // Send file
+        return res.sendFile(filePath);
+    });
+});
 
 //? Pathname to get status.
 //! this pathname is often called!
@@ -287,10 +503,35 @@ router.get('/adminui/rooms/list', function (req, res, next) {
             console.error('Error fetching rooms', err.message);
             return res.status(500).json({ success: false, message: 'Database error' });
         }
-        res.status(200).json({ success: true, data: rows });
+        return res.status(200).json({ success: true, data: rows });
     });
 });
 
+
+router.get('/adminui/stats/Questions', function (req, res, next) {
+    const sql = 'SELECT * FROM Questions';
+
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            console.error('Error fetching rooms', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        return res.status(200).json({ success: true, data: rows });
+    });
+});
+
+router.get('/adminui/stats/:QuestionId', function (req, res, next) {
+    let { QuestionId } = req.params;
+    const sql = 'SELECT * FROM AnsweredQuestions WHERE QuestionId = ?';
+
+    db.all(sql, [QuestionId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching rooms', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        return res.status(200).json({ success: true, data: rows });
+    });
+});
 
 //? Pathname to update challanger info.
 router.put('/adminui/rooms/update/:ChallengeId', function (req, res) {
@@ -313,7 +554,7 @@ router.put('/adminui/rooms/update/:ChallengeId', function (req, res) {
             console.error('Error updating room', err.message);
             return res.status(500).json({ success: false, message: 'Database error' });
         }
-        res.status(200).json({ success: true, message: 'Room successfully updated' });
+        return res.status(200).json({ success: true, message: 'Room successfully updated' });
     });
 });
 
@@ -350,7 +591,7 @@ router.post('/client/answer/register', function (req, res) {
                 console.error('Error updating CollectCount', err.message);
                 return res.status(500).json({ success: false, message: 'Database error' });
             }
-            res.status(200).json({ success: true, message: 'CollectCount successfully updated' });
+            return res.status(200).json({ success: true, message: 'CollectCount successfully updated' });
         });
     }
     else {
@@ -366,7 +607,7 @@ router.post('/client/answer/register', function (req, res) {
                 console.error('Error updating WrongCount', err.message);
                 return res.status(500).json({ success: false, message: 'Database error' });
             }
-            res.status(200).json({ success: true, message: 'WrongCount successfully updated' });
+            return res.status(200).json({ success: true, message: 'WrongCount successfully updated' });
         });
     }
 });
@@ -394,7 +635,7 @@ router.post('/client/finish/:roomCode', function (req, res) {
 
         // Retrieve ChallengeId using RoomCode
         const getChallengeIdSql = `
-            SELECT ChallengeId FROM Rooms WHERE RoomID = ?
+            SELECT * FROM Rooms WHERE RoomID = ?
         `;
         db.get(getChallengeIdSql, [roomCode], function (err, row) {
             if (err) {
@@ -409,7 +650,8 @@ router.post('/client/finish/:roomCode', function (req, res) {
             }
 
             const { ChallengeId } = row;
-
+            const { GroupId } = row;
+            const { Difficulty } = row;
             // Delete the room with the specified RoomCode if it is 'Active'
             const deleteActiveRoomSql = `
                 DELETE FROM Rooms WHERE RoomID = ? AND Status = 'Active'
@@ -450,17 +692,69 @@ router.post('/client/finish/:roomCode', function (req, res) {
                             db.run('ROLLBACK');
                             return res.status(500).json({ success: false, message: 'Database error' });
                         }
+                        if (result == "Cleared") {
+                            const updateClearStatusesSql = `
+                            UPDATE Groups
+                            SET WasCleared = CASE
+                                WHEN WasCleared = '0' THEN '1'
+                                ELSE WasCleared
+                            END
+                            WHERE GroupId = ?
+                        `;
+                            db.run(updateClearStatusesSql, [GroupId], function (err) {
+                                if (err) {
+                                    console.error('Error updating clear statuses', err.message);
+                                    db.run('ROLLBACK');
+                                    return res.status(500).json({ success: false, message: 'Database error' });
+                                }
 
-                        db.run('COMMIT', function (err) {
-                            if (err) {
-                                console.error('Error committing transaction', err.message);
-                                db.run('ROLLBACK');
-                                return res.status(500).json({ success: false, message: 'Database error' });
+                                db.run('COMMIT', function (err) {
+                                    if (err) {
+                                        console.error('Error committing transaction', err.message);
+                                        db.run('ROLLBACK');
+                                        return res.status(500).json({ success: false, message: 'Database error' });
+                                    }
+
+                                    console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
+                                    return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
+                                });
+                            });
+                            let SnackCount;
+                            if (Difficulty === 1) {
+                                SnackCount = 3;
                             }
+                            else if (Difficulty === 2) {
+                                SnackCount = 3;
+                            }
+                            else if (Difficulty === 3) {
+                                SnackCount = 4;
 
+                            }
+                            else if (Difficulty === 4) {
+                                SnackCount = 5;
+                            }
+                            const updateSnackStateSql = `
+                            UPDATE Groups
+                            SET SnackState = CASE
+                                WHEN SnackState = '0' THEN ?
+                                ELSE SnackState
+                            END
+                            WHERE GroupId = ?
+                        `;
+                            db.run(updateSnackStateSql, [SnackCount, GroupId], function (err) {
+                                if (err) {
+                                    console.error('Error updating Snack statuses', err.message);
+                                    db.run('ROLLBACK');
+                                    return res.status(500).json({ success: false, message: 'Database error' });
+                                }
+                                console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
+                                return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
+                            });
+                        }
+                        else {
                             console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
                             return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
-                        });
+                        }
                     });
                 });
             });
@@ -482,32 +776,14 @@ router.get('/client/filelist', (req, res) => {
     const dirPath = path.join(__dirname, '../data');
     try {
         const files = getFileList(dirPath);
-        res.json(files);
+        return res.json(files);
     } catch (err) {
         console.error(err);
-        res.status(500).send('Error reading directory');
+        return res.status(500).send('Error reading directory');
     }
 });
 //& end
 //? Functions to get file list to use in the game
-
-
-//? Function to get currentrooms' status
-//& start
-router.get('/client/currentroom/:roomCode', function (req, res, next) {
-    const { roomCode } = req.params;
-    db.all("SELECT * FROM Rooms WHERE RoomID = ? AND Status = ?", [roomCode, "Active"], function (err, rows) {
-        if (err) {
-            console.error('Error executing query:', err.message);
-            return next(err);
-        }
-        res.json(rows);
-    });
-});
-
-//& end
-//? Function to get currentrooms' status
-
 
 
 //? Function to download files to use in the game
@@ -527,9 +803,26 @@ router.get('/client/getfile/:filename', (req, res) => {
         }
 
         // Send file
-        res.sendFile(filePath);
+        return res.sendFile(filePath);
     });
 });
+
+
+//? Function to get currentrooms' status
+//& start
+router.get('/client/currentroom/:roomCode', function (req, res, next) {
+    const { roomCode } = req.params;
+    db.all("SELECT * FROM Rooms WHERE RoomID = ? AND Status = ?", [roomCode, "Active"], function (err, rows) {
+        if (err) {
+            console.error('Error executing query:', err.message);
+            return next(err);
+        }
+        return res.json(rows);
+    });
+});
+
+//& end
+//? Function to get currentrooms' status
 
 //? get Question for specified challanger in specified level.
 router.get('/client/:GroupId/getQuestion/:level', function (req, res, next) {
@@ -560,20 +853,19 @@ const getRandomQuestion = (level, GroupId, res, next, attemptCounter) => {
                 }
                 if (ansStateRows.length > 0) {
                     if (ansStateRows[0].Result != "correct") {
-                        res.json(rows);
+                        return res.json(rows);
                     } else {
                         getRandomQuestion(level, GroupId, res, next, attemptCounter);
                     }
                 } else {
-                    res.json(rows);
+                    return res.json(rows);
                 }
             });
         } else {
-            res.status(404).json({ error: "No matching question found" });
+            return res.status(404).json({ error: "No matching question found" });
         }
     });
 };
-
 
 
 //? POST: Endpoint for Client Error Report
@@ -597,17 +889,16 @@ router.post('/client/errorReport', function (req, res) {
         db.run(sql, params, function (err) {
             if (err) {
                 console.error('Error inserting into database', err.message);
-                res.status(500).send('Database error');
-                return;
+                return res.status(500).send('Database error');
             }
 
             // Log error to the console in red
             console.log('\x1b[31m%s\x1b[0m', `Error reported: ${error}\nLocation: ${location}`);
 
-            res.status(200).send('Error reported');
+            return res.status(200).send('Error reported');
         });
     } else {
-        res.status(400).send('Invalid data');
+        return res.status(400).send('Invalid data');
     }
 });
 
@@ -619,9 +910,8 @@ router.get('/client/:GroupId/checkQuestions/:level', function (req, res, next) {
     const { GroupId } = req.params;
 
     let availability = checkAvailableQuestions(level, GroupId);
-    res.json({ available: availability });
+    return res.json({ available: availability });
 });
-
 const checkAvailableQuestions = (level, GroupId) => {
     // 各レベルごとの必要な質問数を設定
     let requiredQuestions;
@@ -681,10 +971,10 @@ router.get('/plug/:ip/on', async function (req, res, next) {
         }
 
         const result = await device.getSysInfo();
-        res.send(result);
+        return res.send(result);
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).send('Failed to control the device');
+        return res.status(500).send('Failed to control the device');
     }
 });
 
@@ -712,10 +1002,10 @@ router.get('/plug/:ip/off', async function (req, res, next) {
         }
 
         const result = await device.getSysInfo();
-        res.send(result);
+        return res.send(result);
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).send('Failed to control the device');
+        return res.status(500).send('Failed to control the device');
     }
 });
 
@@ -738,10 +1028,10 @@ router.get('/plug/:ip/switch', async function (req, res, next) {
             }
         }
         const result = await device.getSysInfo();
-        res.send(result);
+        return res.send(result);
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).send('Failed to control the device');
+        return res.status(500).send('Failed to control the device');
     }
 });
 
@@ -767,10 +1057,10 @@ router.get('/plug/:ip/switch/loop/:count', async function (req, res, next) {
             }
             await sleep(50);
         }
-        res.send(`completed switching ${count} times.`);
+        return res.send(`completed switching ${count} times.`);
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).send('Failed to control the device');
+        return res.status(500).send('Failed to control the device');
     }
 });
 //! DO NOT USE REGULARY!
@@ -778,7 +1068,7 @@ router.get('/plug/:ip/switch/loop/:count', async function (req, res, next) {
 
 //? endpoint to check server availability.
 router.get('/alive', function (req, res, next) {
-    res.send('Server connection is Okay!');
+    return res.send('Server connection is Okay!');
 });
 
 module.exports = router;

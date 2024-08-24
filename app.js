@@ -11,6 +11,15 @@ const readline = require('readline');
 var app = express(); // define app
 app.disable('etag'); // Disable cookie holding
 
+// /adminui以下のパスに対してstaticファイルを提供
+app.use('/adminui', express.static(path.join(__dirname, ".", "build")));
+
+// /adminui以下の全てのリクエストをindex.htmlにリダイレクト
+app.use('/adminui', (req, res, next) => {
+    res.sendFile(path.join(__dirname, ".", "build", "index.html"));
+});
+
+
 //& router require zone
 var apiRouter = require('./routes/api');
 //& router reqire zone
