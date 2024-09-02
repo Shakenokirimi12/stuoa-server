@@ -654,7 +654,7 @@ router.post('/client/finish/:roomCode', function (req, res) {
             const { Difficulty } = row;
             // Delete the room with the specified RoomCode if it is 'Active'
             const deleteActiveRoomSql = `
-                DELETE FROM Rooms WHERE RoomID = ? AND Status = 'Active'
+                DELETE FROM Rooms WHERE RoomID = ? AND Status = '1'
             `;
             db.run(deleteActiveRoomSql, [roomCode], function (err) {
                 if (err) {
@@ -679,10 +679,7 @@ router.post('/client/finish/:roomCode', function (req, res) {
                     // Update statuses for remaining rooms
                     const updateStatusesSql = `
                         UPDATE Rooms
-                        SET Status = CASE
-                            WHEN Status = '1' THEN 'Active'
-                            WHEN Status != 'Active' THEN CAST(Status AS INTEGER) - 1
-                            ELSE Status
+                        SET Status = CAST(Status AS INTEGER) - 1
                         END
                         WHERE RoomID = ?
                     `;
@@ -812,7 +809,7 @@ router.get('/client/getfile/:filename', (req, res) => {
 //& start
 router.get('/client/currentroom/:roomCode', function (req, res, next) {
     const { roomCode } = req.params;
-    db.all("SELECT * FROM Rooms WHERE RoomID = ? AND Status = ?", [roomCode, "Active"], function (err, rows) {
+    db.all("SELECT * FROM Rooms WHERE RoomID = ? AND Status = ?", [roomCode, "1"], function (err, rows) {
         if (err) {
             console.error('Error executing query:', err.message);
             return next(err);
@@ -866,6 +863,23 @@ const getRandomQuestion = (level, GroupId, res, next, attemptCounter) => {
         }
     });
 };
+
+router.get('/client/getQuestionById/:questionid', function (req, res, next) {
+    const { questionid } = req.params;
+    const getQuestionByIdSql = `
+            SELECT * FROM Questions WHERE ID = ?
+        `;
+    db.get(getQuestionByIdSql, [questionid], function (err, row) {
+        if (err) {
+            console.error('Error retrieving Question By id', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        if (row) {
+            return res.status(200).json(row);
+        }
+    })
+});
 
 
 //? POST: Endpoint for Client Error Report
@@ -1055,7 +1069,7 @@ router.get('/plug/:ip/switch/loop/:count', async function (req, res, next) {
                     await device.setPowerState(true);
                 }
             }
-            await sleep(50);
+            await sleep(1000);
         }
         return res.send(`completed switching ${count} times.`);
     } catch (error) {
