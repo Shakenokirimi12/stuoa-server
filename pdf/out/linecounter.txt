@@ -1,0 +1,120 @@
+===============================================================================
+EXTENSION NAME : linecounter
+EXTENSION VERSION : 0.2.7
+-------------------------------------------------------------------------------
+count time : 2024-09-06 08:52:23
+count workspace : /home/shake/sosho-2024/stuoa-server
+total files : 95
+total code lines : 2710
+total comment lines : 235
+total blank lines : 481
+
+    statistics
+   |      extension|     total code|  total comment|    total blank|percent|
+   -------------------------------------------------------------------------
+   |            .js|           1179|            132|            212|     44|
+   |           .txt|              3|             75|              7|   0.11|
+   |          .json|             61|              0|              1|    2.3|
+   |           .map|              3|              0|              0|   0.11|
+   |           .css|              8|              1|              1|   0.30|
+   |          .html|              1|              0|              0|  0.037|
+   |               |             47|             24|             19|    1.7|
+   |          .lock|           1392|              3|            239|     51|
+   |          .jade|             16|              0|              2|   0.59|
+   -------------------------------------------------------------------------
+app.js, code is 55, comment is 23, blank is 17.
+bin/www, code is 47, comment is 24, blank is 19.
+build/asset-manifest.json, code is 15, comment is 0, blank is 1.
+build/favicon.ico, it is a binary file.
+build/index.html, code is 1, comment is 0, blank is 0.
+build/logo192.png, it is a binary file.
+build/logo512.png, it is a binary file.
+build/manifest.json, code is 25, comment is 0, blank is 0.
+build/robots.txt, code is 3, comment is 1, blank is 0.
+build/static/css/main.f855e6bc.css, code is 1, comment is 1, blank is 0.
+build/static/css/main.f855e6bc.css.map, code is 1, comment is 0, blank is 0.
+build/static/js/453.6b4fed61.chunk.js, code is 1, comment is 1, blank is 0.
+build/static/js/453.6b4fed61.chunk.js.map, code is 1, comment is 0, blank is 0.
+build/static/js/main.20be5365.js, code is 231, comment is 3, blank is 49.
+build/static/js/main.20be5365.js.LICENSE.txt, code is 0, comment is 74, blank is 7.
+build/static/js/main.20be5365.js.map, code is 1, comment is 0, blank is 0.
+build/static/media/icon.33038adaaf836875e8ed.png, it is a binary file.
+data/correct.mp4, it is a binary file.
+data/countdown.mp4, it is a binary file.
+data/exit_left.mp4, it is a binary file.
+data/exit_right.mp4, it is a binary file.
+data/icon.png, it is a binary file.
+data/last_1_1.mp4, it is a binary file.
+data/last_2_1.mp4, it is a binary file.
+data/last_2_2.mp4, it is a binary file.
+data/last_3_1.mp4, it is a binary file.
+data/last_3_2.mp4, it is a binary file.
+data/last_3_3.mp4, it is a binary file.
+data/last_4_1.mp4, it is a binary file.
+data/last_4_2.mp4, it is a binary file.
+data/last_4_3.mp4, it is a binary file.
+data/last_4_4.mp4, it is a binary file.
+data/last_5_2.mp4, it is a binary file.
+data/last_5_3.mp4, it is a binary file.
+data/last_5_4.mp4, it is a binary file.
+data/last_5_5.mp4, it is a binary file.
+data/last_6_3.mp4, it is a binary file.
+data/last_6_4.mp4, it is a binary file.
+data/last_6_5.mp4, it is a binary file.
+data/last_6_5_start.mp4, it is a binary file.
+data/last_7_4_start.mp4, it is a binary file.
+data/last_7_5_start.mp4, it is a binary file.
+data/login_failed_2.mp4, it is a binary file.
+data/lv1_q1.png, it is a binary file.
+data/lv1_q2.png, it is a binary file.
+data/lv1_q3.png, it is a binary file.
+data/lv1_q4.png, it is a binary file.
+data/lv1_q5.png, it is a binary file.
+data/lv1_q6.png, it is a binary file.
+data/lv1_q7.png, it is a binary file.
+data/lv1_q8.png, it is a binary file.
+data/lv2_q1.png, it is a binary file.
+data/lv2_q2.png, it is a binary file.
+data/lv2_q3.png, it is a binary file.
+data/lv2_q4.png, it is a binary file.
+data/lv2_q5.png, it is a binary file.
+data/lv2_q6.png, it is a binary file.
+data/lv2_q7.png, it is a binary file.
+data/lv2_q8.png, it is a binary file.
+data/lv2_q9.png, it is a binary file.
+data/lv3_q1.png, it is a binary file.
+data/lv3_q10.png, it is a binary file.
+data/lv3_q2.png, it is a binary file.
+data/lv3_q3.png, it is a binary file.
+data/lv3_q4.png, it is a binary file.
+data/lv3_q5.png, it is a binary file.
+data/lv3_q6.png, it is a binary file.
+data/lv3_q7.png, it is a binary file.
+data/lv3_q8.png, it is a binary file.
+data/lv3_q9.png, it is a binary file.
+data/lv4_q1.png, it is a binary file.
+data/lv4_q2.png, it is a binary file.
+data/lv4_q3.png, it is a binary file.
+data/lv4_q4.png, it is a binary file.
+data/lv4_q5.png, it is a binary file.
+data/lv4_q6.png, it is a binary file.
+data/opening.mp4, it is a binary file.
+data/tenkey.png, it is a binary file.
+data/wrong.mp4, it is a binary file.
+database/stuoa-db.db, it is a binary file.
+package.json, code is 21, comment is 0, blank is 0.
+pdf/NotoSansJP-Regular.ttf, it is a binary file.
+pdf/output/1724482817.pdf, it is a binary file.
+pdf/output/1724762107.pdf, it is a binary file.
+pdf/output/1725382062.pdf, it is a binary file.
+pdf/template.pdf, it is a binary file.
+public/stylesheets/style.css, code is 7, comment is 0, blank is 1.
+routes/adminui.js, code is 6, comment is 1, blank is 3.
+routes/api.js, code is 867, comment is 103, blank is 140.
+routes/db.js, code is 19, comment is 1, blank is 3.
+test.js, code is 0, comment is 0, blank is 0.
+views/error.jade, code is 5, comment is 0, blank is 1.
+views/index.jade, code is 4, comment is 0, blank is 1.
+views/layout.jade, code is 7, comment is 0, blank is 0.
+yarn.lock, code is 1392, comment is 3, blank is 239.
+===============================================================================
