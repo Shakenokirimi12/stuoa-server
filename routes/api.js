@@ -628,9 +628,8 @@ router.post('/client/finish/:roomCode', function (req, res) {
     // Start a transaction to ensure data consistency
     db.run('BEGIN TRANSACTION', function (err) {
         if (err) {
-            console.error('Error starting transaction', err.message);
-            db.run('ROLLBACK');
-            return res.status(500).json({ success: false, message: 'Database error' });
+            console.error('Error starting transaction', err.message, err.stack);
+            return res.status(500).json({ success: false, message: 'Database error at 633', error: err.stack });
         }
 
         // Retrieve ChallengeId using RoomCode
@@ -639,9 +638,9 @@ router.post('/client/finish/:roomCode', function (req, res) {
         `;
         db.get(getChallengeIdSql, [roomCode], function (err, row) {
             if (err) {
-                console.error('Error retrieving ChallengeId', err.message);
+                console.error('Error retrieving ChallengeId', err.message, err.stack);
                 db.run('ROLLBACK');
-                return res.status(500).json({ success: false, message: 'Database error' });
+                return res.status(500).json({ success: false, message: 'Database error at 644', error: err.stack });
             }
 
             if (!row) {
@@ -649,18 +648,17 @@ router.post('/client/finish/:roomCode', function (req, res) {
                 return res.status(404).json({ success: false, message: 'Room not found' });
             }
 
-            const { ChallengeId } = row;
-            const { GroupId } = row;
-            const { Difficulty } = row;
+            const { ChallengeId, GroupId, Difficulty } = row;
+
             // Delete the room with the specified RoomCode if it is 'Active'
             const deleteActiveRoomSql = `
                 DELETE FROM Rooms WHERE RoomID = ? AND Status = '1'
             `;
             db.run(deleteActiveRoomSql, [roomCode], function (err) {
                 if (err) {
-                    console.error('Error deleting active room', err.message);
+                    console.error('Error deleting active room', err.message, err.stack);
                     db.run('ROLLBACK');
-                    return res.status(500).json({ success: false, message: 'Database error' });
+                    return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                 }
 
                 // Update the corresponding Challenge
@@ -671,86 +669,78 @@ router.post('/client/finish/:roomCode', function (req, res) {
                 `;
                 db.run(updateChallengeSql, [result, ChallengeId], function (err) {
                     if (err) {
-                        console.error('Error updating challenge', err.message);
+                        console.error('Error updating challenge', err.message, err.stack);
                         db.run('ROLLBACK');
-                        return res.status(500).json({ success: false, message: 'Database error' });
+                        return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                     }
 
                     // Update statuses for remaining rooms
                     const updateStatusesSql = `
                         UPDATE Rooms
                         SET Status = CAST(Status AS INTEGER) - 1
-                        END
                         WHERE RoomID = ?
                     `;
                     db.run(updateStatusesSql, [roomCode], function (err) {
                         if (err) {
-                            console.error('Error updating statuses', err.message);
+                            console.error('Error updating statuses', err.message, err.stack);
                             db.run('ROLLBACK');
-                            return res.status(500).json({ success: false, message: 'Database error' });
+                            return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                         }
-                        if (result == "Cleared") {
+
+                        if (result === "Cleared") {
+                            let SnackCount;
+                            if (Difficulty === 1 || Difficulty === 2) {
+                                SnackCount = 3;
+                            } else if (Difficulty === 3) {
+                                SnackCount = 4;
+                            } else if (Difficulty === 4) {
+                                SnackCount = 5;
+                            }
+
+                            // Update WasCleared and SnackState in the Groups table
                             const updateClearStatusesSql = `
-                            UPDATE Groups
-                            SET WasCleared = CASE
-                                WHEN WasCleared = '0' THEN '1'
-                                ELSE WasCleared
-                            END
-                            WHERE GroupId = ?
-                        `;
-                            db.run(updateClearStatusesSql, [GroupId], function (err) {
+                                UPDATE Groups
+                                SET WasCleared = CASE
+                                    WHEN WasCleared = '0' THEN '1'
+                                    ELSE WasCleared
+                                END,
+                                SnackState = CASE
+                                    WHEN SnackState = '0' THEN ?
+                                    ELSE SnackState
+                                END
+                                WHERE GroupId = ?
+                            `;
+                            db.run(updateClearStatusesSql, [SnackCount, GroupId], function (err) {
                                 if (err) {
-                                    console.error('Error updating clear statuses', err.message);
+                                    console.error('Error updating clear statuses', err.message, err.stack);
                                     db.run('ROLLBACK');
-                                    return res.status(500).json({ success: false, message: 'Database error' });
+                                    return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                                 }
 
+                                // Commit transaction
                                 db.run('COMMIT', function (err) {
                                     if (err) {
-                                        console.error('Error committing transaction', err.message);
+                                        console.error('Error committing transaction', err.message, err.stack);
                                         db.run('ROLLBACK');
-                                        return res.status(500).json({ success: false, message: 'Database error' });
+                                        return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                                     }
 
                                     console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
                                     return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
                                 });
                             });
-                            let SnackCount;
-                            if (Difficulty === 1) {
-                                SnackCount = 3;
-                            }
-                            else if (Difficulty === 2) {
-                                SnackCount = 3;
-                            }
-                            else if (Difficulty === 3) {
-                                SnackCount = 4;
-
-                            }
-                            else if (Difficulty === 4) {
-                                SnackCount = 5;
-                            }
-                            const updateSnackStateSql = `
-                            UPDATE Groups
-                            SET SnackState = CASE
-                                WHEN SnackState = '0' THEN ?
-                                ELSE SnackState
-                            END
-                            WHERE GroupId = ?
-                        `;
-                            db.run(updateSnackStateSql, [SnackCount, GroupId], function (err) {
+                        } else {
+                            // Commit transaction for 'Failed' result
+                            db.run('COMMIT', function (err) {
                                 if (err) {
-                                    console.error('Error updating Snack statuses', err.message);
+                                    console.error('Error committing transaction', err.message, err.stack);
                                     db.run('ROLLBACK');
-                                    return res.status(500).json({ success: false, message: 'Database error' });
+                                    return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                                 }
+
                                 console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
                                 return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
                             });
-                        }
-                        else {
-                            console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
-                            return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
                         }
                     });
                 });
@@ -758,6 +748,7 @@ router.post('/client/finish/:roomCode', function (req, res) {
         });
     });
 });
+
 
 
 //? Functions to get file list to use in the game
@@ -849,7 +840,7 @@ const getRandomQuestion = (level, GroupId, res, next, attemptCounter) => {
                     return next(err);
                 }
                 if (ansStateRows.length > 0) {
-                    if (ansStateRows[0].Result != "correct") {
+                    if (ansStateRows[0].Result != "Correct") {
                         return res.json(rows);
                     } else {
                         getRandomQuestion(level, GroupId, res, next, attemptCounter);
