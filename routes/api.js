@@ -759,9 +759,9 @@ router.post('/client/finish/:roomCode', function (req, res) {
 
             const { ChallengeId, GroupId, Difficulty } = row;
 
-            // Delete the room with the specified RoomCode if it is 'Active'
+            // Delete the room with the specified RoomCode if it is 'Started'
             const deleteActiveRoomSql = `
-                DELETE FROM Rooms WHERE RoomID = ? AND Status = '1'
+                DELETE FROM Rooms WHERE RoomID = ? AND Status = 'Started'
             `;
             db.run(deleteActiveRoomSql, [roomCode], function (err) {
                 if (err) {
@@ -907,17 +907,33 @@ router.get('/client/getfile/:filename', (req, res) => {
 
 //? Function to get currentrooms' status
 //& start
-router.get('/client/currentroom/:roomCode', function (req, res, next) {
+router.get('/client/startGame/:roomCode', function (req, res, next) {
     const { roomCode } = req.params;
-    db.all("SELECT * FROM Rooms WHERE RoomID = ? AND Status = ?", [roomCode, "1"], function (err, rows) {
+
+    // 最初にStatusが"1"である部屋を取得
+    db.get("SELECT * FROM Rooms WHERE RoomID = ? AND Status = ?", [roomCode, "1"], function (err, row) {
         if (err) {
-            console.error('Error executing query:', err.message);
+            console.error('Error executing select query:', err.message);
             return next(err);
         }
-        return res.json(rows);
+
+        // 部屋が見つからなかった場合
+        if (!row) {
+            return res.status(404).json({ message: "Room not found or not in status 1" });
+        }
+
+        // 部屋が見つかった場合、Statusを"Started"に更新
+        db.run("UPDATE Rooms SET Status = ? WHERE RoomID = ?", ["Started", roomCode], function (err) {
+            if (err) {
+                console.error('Error executing update query:', err.message);
+                return next(err);
+            }
+
+            // 更新が完了したら、部屋の情報を返す
+            return res.json(row);
+        });
     });
 });
-
 //& end
 //? Function to get currentrooms' status
 
