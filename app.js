@@ -16,9 +16,13 @@ app.use('/adminui', express.static(path.join(__dirname, ".", "build")));
 
 // /adminui以下の全てのリクエストをindex.htmlにリダイレクト
 app.use('/adminui', (req, res, next) => {
-    res.sendFile(path.join(__dirname, ".", "build", "index.html"));
+  res.sendFile(path.join(__dirname, ".", "build", "index.html"));
 });
 
+app.use('/mobileui', express.static(path.join(__dirname, ".", "dist")));
+app.use('/mobileui', (req, res, next) => {
+  res.sendFile(path.join(__dirname, ".", "dist", "index.html"));
+});
 
 //& router require zone
 var apiRouter = require('./routes/api');

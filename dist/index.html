@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="./vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Save the UoA Mobile UI</title>
+  <script type="module" crossorigin src="./assets/index-BSVqrbMZ.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BPvgi06w.css">
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('./serviceWorker.js')
+          .then((reg) => console.log('サービスワーカーの登録成功', reg.scope))
+          .catch((err) => console.log('サービスワーカーの登録失敗', err));
+      });
+    }
+  </script>
+</body>
+
+</html>
