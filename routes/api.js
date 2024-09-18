@@ -226,9 +226,7 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
             }
 
             // Check if the group name exists
-            const checkGroupSql = `
-                SELECT GroupId FROM Groups WHERE Name = ?
-            `;
+            const checkGroupSql = `SELECT GroupId FROM Groups WHERE Name = ?`;
             db.get(checkGroupSql, [GroupName], function (err, row) {
                 if (err) {
                     console.error('Error checking group name', err.message);
@@ -236,145 +234,16 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
                     return res.status(500).json({ success: false, message: 'Database error' });
                 }
 
-                function autoAssignRoom(groupId) {
-                    // Query the room with the least number of records
-                    const roomStatusSql = `
-                        SELECT RoomID, COUNT(*) AS RecordCount
-                        FROM Rooms
-                        WHERE RoomID IN ('A', 'B', 'C')
-                        GROUP BY RoomID
-                        ORDER BY RecordCount ASC, RoomID ASC
-                    `;
-                    db.all(roomStatusSql, [], function (err, rows) {
-                        if (err) {
-                            console.error('Error retrieving room status', err.message);
-                            db.run('ROLLBACK');
-                            return res.status(500).json({ success: false, message: 'Database error' });
-                        }
-
-                        let roomID = 'A'; // Default to Room A
-                        if (rows.length === 3) {
-                            // If all rooms exist, choose the one with the least records
-                            roomID = rows[0].RoomID; // The room with the least number of records
-                        } else {
-                            // In case a room has no records, fill in missing ones
-                            const existingRoomIds = rows.map(row => row.RoomID);
-                            if (!existingRoomIds.includes('A')) {
-                                roomID = 'A';
-                            } else if (!existingRoomIds.includes('B')) {
-                                roomID = 'B';
-                            } else if (!existingRoomIds.includes('C')) {
-                                roomID = 'C';
-                            }
-                        }
-                        addChallengeAndRoom(groupId, roomID);
-                    });
-                }
-
-                const addChallengeAndRoom = (groupId, roomID) => {
-                    // Determine challenge state
-                    const checkActiveChallengesSql = `
-                        SELECT COUNT(*) AS ActiveCount
-                        FROM Challenges
-                        WHERE RoomID = ? AND State = 'Playing'
-                    `;
-                    db.get(checkActiveChallengesSql, [roomID], function (err, activeCountRow) {
-                        if (err) {
-                            console.error('Error checking active challenges', err.message);
-                            db.run('ROLLBACK');
-                            return res.status(500).json({ success: false, message: 'Database error' });
-                        }
-
-                        const hasActiveChallenges = activeCountRow.ActiveCount > 0;
-                        const challengeState = hasActiveChallenges ? 'Pending' : 'Playing';
-                        const ChallengeId = require('crypto').randomUUID();
-
-                        const addChallengeSql = `
-                            INSERT INTO Challenges (GroupId, Difficulty, RoomID, StartTime, State, ChallengeId)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        `;
-                        const addChallengeParams = [
-                            groupId,
-                            difficulty,
-                            roomID,
-                            new Date().toISOString(), // StartTime as ISO string
-                            challengeState,
-                            ChallengeId
-                        ];
-
-                        db.run(addChallengeSql, addChallengeParams, function (err) {
-                            if (err) {
-                                console.error('Error inserting challenge', err.message);
-                                db.run('ROLLBACK');
-                                return res.status(500).json({ success: false, message: 'Database error' });
-                            }
-
-                            // Insert a new room entry
-                            const getMaxStatusSql = `
-                                SELECT MAX(CAST(Status AS INTEGER)) AS MaxStatus
-                                FROM Rooms
-                                WHERE RoomID = ?
-                            `;
-                            db.get(getMaxStatusSql, [roomID], function (err, result) {
-                                if (err) {
-                                    console.error('Error retrieving max status', err.message);
-                                    db.run('ROLLBACK');
-                                    return res.status(500).json({ success: false, message: 'Database error' });
-                                }
-
-                                const currentStatus = result.MaxStatus || 0;
-                                const nextStatus = (currentStatus + 1).toString();
-
-                                const addRoomSql = `
-                                    INSERT INTO Rooms (RoomID, GroupName, GroupId, Difficulty, MemberCount, Status, StartTime, ChallengeId)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                `;
-                                const addRoomParams = [
-                                    roomID,
-                                    GroupName,
-                                    groupId,
-                                    difficulty,
-                                    playerCount,
-                                    nextStatus,
-                                    new Date().toISOString(), // StartTime as ISO string
-                                    ChallengeId
-                                ];
-
-                                db.run(addRoomSql, addRoomParams, function (err) {
-                                    if (err) {
-                                        console.error('Error inserting room', err.message);
-                                        db.run('ROLLBACK');
-                                        return res.status(500).json({ success: false, message: 'Database error' });
-                                    }
-
-                                    db.run('COMMIT', function (err) {
-                                        if (err) {
-                                            console.error('Error committing transaction', err.message);
-                                            return res.status(500).json({ success: false, message: 'Database error' });
-                                        }
-
-                                        console.log(`Challenge and new room entry successfully added for room ${roomID}`);
-                                        return res.status(200).json({ success: true, message: 'Challenge and new room entry successfully added', roomId: roomID });
-                                    });
-                                });
-                            });
-                        });
-                    });
-                };
-
                 if (row) {
+                    // Group exists, check for duplicate entry if `dupCheck` is false
                     if (!dupCheck) {
-                        // Group name exists and dupCheck is not true, send a warning
                         db.run('ROLLBACK');
                         return res.status(409).json({ success: false, message: 'Group name already exists. Set dupCheck to true to proceed.' });
                     }
-
-                    // Use the existing GroupId
-                    autoAssignRoom(row.GroupId);
+                    validateAndAssignRoom(row.GroupId);
                 } else {
-                    // Group name does not exist, generate a new GroupId
+                    // Group doesn't exist, create new GroupId
                     const groupId = require('crypto').randomUUID();
-
                     const insertGroupSql = `
                         INSERT INTO Groups (Name, GroupId, ChallengesCount, PlayerCount, WasCleared, SnackState)
                         VALUES (?, ?, ?, ?, ?, ?)
@@ -385,9 +254,7 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
                             db.run('ROLLBACK');
                             return res.status(500).json({ success: false, message: 'Database error' });
                         }
-
-                        // Proceed to auto-assign room and add challenge
-                        autoAssignRoom(groupId);
+                        validateAndAssignRoom(groupId);
                     });
                 }
             });
@@ -395,7 +262,161 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
     } else {
         return res.status(400).json({ success: false, message: 'Invalid data' });
     }
+
+    function validateAndAssignRoom(groupId) {
+        // Determine the required number of questions based on the difficulty level
+        let requiredQuestions;
+        switch (difficulty) {
+            case "1":
+            case "2":
+            case 1:
+            case 2:
+                requiredQuestions = 7;
+                break;
+            case "3":
+            case 3:
+                requiredQuestions = 6;
+                break;
+            case "4":
+            case 4:
+                requiredQuestions = 1;
+                break;
+            default:
+                db.run('ROLLBACK');
+                return res.status(400).json({ success: false, message: 'Invalid difficulty level' });
+        }
+
+        // Check if there are enough questions to start the game
+        const query = `
+            SELECT COUNT(*) AS count
+            FROM Questions Q
+            LEFT JOIN AnsweredQuestions AQ ON Q.ID = AQ.QuestionId AND AQ.GroupId = ?
+            WHERE Q.Difficulty = ? AND (AQ.Result IS NULL OR AQ.Result NOT IN ('Correct', 'Wrong'))
+        `;
+        db.get(query, [groupId, difficulty], function (err, row) {
+            if (err) {
+                console.error('Error executing query:', err.message);
+                db.run('ROLLBACK');
+                return res.status(500).json({ success: false, message: 'Database error' });
+            }
+
+            if (row.count >= requiredQuestions) {
+                autoAssignRoom(groupId);
+            } else {
+                db.run('ROLLBACK');
+                return res.status(400).json({ success: false, message: 'この難易度でゲームを始めるために必要な問題数が不足しています。難易度を変更してください。' });
+            }
+        });
+    }
+
+    function autoAssignRoom(groupId) {
+        // Query the room with the least number of records
+        const roomStatusSql = `
+            SELECT RoomID, COUNT(*) AS RecordCount
+            FROM Rooms
+            WHERE RoomID IN ('A', 'B', 'C')
+            GROUP BY RoomID
+            ORDER BY RecordCount ASC, RoomID ASC
+        `;
+        db.all(roomStatusSql, [], function (err, rows) {
+            if (err) {
+                console.error('Error retrieving room status', err.message);
+                db.run('ROLLBACK');
+                return res.status(500).json({ success: false, message: 'Database error' });
+            }
+
+            let roomID = assignRoomBasedOnRecords(rows);
+            addChallengeAndRoom(groupId, roomID);
+        });
+    }
+
+    function assignRoomBasedOnRecords(rows) {
+        let roomID = 'A'; // Default to Room A
+        if (rows.length === 3) {
+            roomID = rows[0].RoomID; // The room with the least number of records
+        } else {
+            const existingRoomIds = rows.map(row => row.RoomID);
+            if (!existingRoomIds.includes('A')) roomID = 'A';
+            else if (!existingRoomIds.includes('B')) roomID = 'B';
+            else if (!existingRoomIds.includes('C')) roomID = 'C';
+        }
+        return roomID;
+    }
+
+    function addChallengeAndRoom(groupId, roomID) {
+        const checkActiveChallengesSql = `
+            SELECT COUNT(*) AS ActiveCount
+            FROM Challenges
+            WHERE RoomID = ? AND State = 'Playing'
+        `;
+        db.get(checkActiveChallengesSql, [roomID], function (err, activeCountRow) {
+            if (err) {
+                console.error('Error checking active challenges', err.message);
+                db.run('ROLLBACK');
+                return res.status(500).json({ success: false, message: 'Database error' });
+            }
+
+            const hasActiveChallenges = activeCountRow.ActiveCount > 0;
+            const challengeState = hasActiveChallenges ? 'Pending' : 'Playing';
+            const ChallengeId = require('crypto').randomUUID();
+
+            const addChallengeSql = `
+                INSERT INTO Challenges (GroupId, Difficulty, RoomID, StartTime, State, ChallengeId)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `;
+            const addChallengeParams = [groupId, difficulty, roomID, new Date().toISOString(), challengeState, ChallengeId];
+
+            db.run(addChallengeSql, addChallengeParams, function (err) {
+                if (err) {
+                    console.error('Error inserting challenge', err.message);
+                    db.run('ROLLBACK');
+                    return res.status(500).json({ success: false, message: 'Database error' });
+                }
+
+                addRoomEntry(groupId, roomID, ChallengeId);
+            });
+        });
+    }
+
+    function addRoomEntry(groupId, roomID, ChallengeId) {
+        const getMaxStatusSql = `SELECT MAX(CAST(Status AS INTEGER)) AS MaxStatus FROM Rooms WHERE RoomID = ?`;
+        db.get(getMaxStatusSql, [roomID], function (err, result) {
+            if (err) {
+                console.error('Error retrieving max status', err.message);
+                db.run('ROLLBACK');
+                return res.status(500).json({ success: false, message: 'Database error' });
+            }
+
+            const currentStatus = result.MaxStatus || 0;
+            const nextStatus = (currentStatus + 1).toString();
+
+            const addRoomSql = `
+                INSERT INTO Rooms (RoomID, GroupName, GroupId, Difficulty, MemberCount, Status, StartTime, ChallengeId)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            const addRoomParams = [roomID, GroupName, groupId, difficulty, playerCount, nextStatus, new Date().toISOString(), ChallengeId];
+
+            db.run(addRoomSql, addRoomParams, function (err) {
+                if (err) {
+                    console.error('Error inserting room', err.message);
+                    db.run('ROLLBACK');
+                    return res.status(500).json({ success: false, message: 'Database error' });
+                }
+
+                db.run('COMMIT', function (err) {
+                    if (err) {
+                        console.error('Error committing transaction', err.message);
+                        return res.status(500).json({ success: false, message: 'Database error' });
+                    }
+
+                    console.log(`Challenge and new room entry successfully added for room ${roomID}`);
+                    return res.status(200).json({ success: true, message: 'Challenge and new room entry successfully added', roomId: roomID });
+                });
+            });
+        });
+    }
 });
+
 
 //! the pathname above is long!
 //! consider using code foldering function!
@@ -1125,39 +1146,38 @@ router.get('/client/startGame/:roomCode', function (req, res) {
 
 //? get Question for specified challanger in specified level.
 router.get('/client/:GroupId/getQuestion/:level', function (req, res, next) {
-    const { level } = req.params;
-    const { GroupId } = req.params;
+    const { level, GroupId } = req.params;
     // Initialize the attempt counter
-    const attemptCounter = { count: 0 };
-    getRandomQuestion(level, GroupId, res, next, attemptCounter);
+    getRandomQuestion(level, GroupId, res, next, 0);
 });
-const getRandomQuestion = (level, GroupId, res, next, attemptCounter) => {
-    if (attemptCounter.count >= 30) {
-        return res.status(500).json({ error: "No question to answer. Please contact support.", code: "CL-GQ-01" });
-    }
 
-    attemptCounter.count++;
+const getRandomQuestion = (level, GroupId, res, next, attemptCounter = 0) => {
+    const maxAttempts = 10; // Limit to avoid infinite recursion
+
+    if (attemptCounter >= maxAttempts) {
+        return res.status(404).json({ error: "No available questions after multiple attempts." });
+    }
 
     db.all("SELECT * FROM Questions WHERE Difficulty = ? ORDER BY RANDOM() LIMIT 1", [level], function (err, rows) {
         if (err) {
             console.error('Error executing query:', err.message);
             return next(err);
         }
+
         if (rows.length > 0) {
-            const json = rows[0];  // 1つのレコードをjson変数として取得
-            db.all("SELECT * FROM AnsweredQuestions WHERE GroupId = ? AND QuestionId = ?", [GroupId, json.ID], function (err, ansStateRows) {
+            const json = rows[0];
+            db.all("SELECT * FROM AnsweredQuestions WHERE GroupID = ? AND QuestionID = ?", [GroupId, json.ID], function (err, ansStateRows) {
                 if (err) {
                     console.error('Error executing query:', err.message);
                     return next(err);
                 }
+
                 if (ansStateRows.length > 0) {
-                    console.log(rows);
-                    if (ansStateRows[0].Result != "Correct" || ansStateRows[0].Result != "Wrong") {
-                        return res.json(rows);
-                    } else {
-                        getRandomQuestion(level, GroupId, res, next, attemptCounter);
-                    }
+                    // Question has already been answered, attempt again
+                    console.log(`Question ${json.ID} already answered. Retrying... Attempt: ${attemptCounter + 1}`);
+                    getRandomQuestion(level, GroupId, res, next, attemptCounter + 1);
                 } else {
+                    // Found a valid question
                     console.log(rows);
                     return res.json(rows);
                 }
@@ -1220,58 +1240,6 @@ router.post('/client/errorReport', function (req, res) {
     }
 });
 
-
-//? Check if question is available to start the game.
-router.get('/client/:GroupId/checkQuestions/:level', function (req, res, next) {
-    console.log("Checking available questions.");
-    const { level } = req.params;
-    const { GroupId } = req.params;
-
-    let availability = checkAvailableQuestions(level, GroupId);
-    return res.json({ available: availability });
-});
-const checkAvailableQuestions = (level, GroupId) => {
-    // 各レベルごとの必要な質問数を設定
-    let requiredQuestions;
-    switch (level) {
-        case "1":
-        case "2":
-            requiredQuestions = 7;
-            break;
-        case "3":
-            requiredQuestions = 6;
-            break;
-        case "4":
-            requiredQuestions = 1;
-            break;
-        default:
-            return res.status(400).json({ error: "Invalid level specified." });
-    }
-
-    // クエリを構築して未解答の質問の数をカウント
-    const query = `
-        SELECT COUNT(*) AS count
-        FROM Questions Q
-        LEFT JOIN AnsweredQuestions AQ
-        ON Q.ID = AQ.QuestionId AND AQ.GroupId = ?
-        WHERE Q.Difficulty = ? AND (AQ.Result IS NULL OR AQ.Result != 'correct')
-    `;
-
-    db.get(query, [GroupId, level], function (err, row) {
-        if (err) {
-            console.error('Error executing query:', err.message);
-            return err.message;
-        }
-
-        // クエリの結果に基づいて条件を確認
-        if (row.count >= requiredQuestions) {
-            return true;
-        } else {
-            return false;
-        }
-    });
-};
-//? Check if question is available to start the game.
 
 
 //? endpoint to turn on the specified plug.
