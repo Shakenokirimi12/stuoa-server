@@ -1094,33 +1094,32 @@ router.get('/client/getfile/:filename', (req, res) => {
 
 //? Function to get currentrooms' status
 //& start
-router.get('/client/startGame/:roomCode', function (req, res, next) {
+router.get('/client/startGame/:roomCode', function (req, res) {
     const { roomCode } = req.params;
-
-    // 最初にStatusが"1"である部屋を取得
     db.get("SELECT * FROM Rooms WHERE RoomID = ? AND Status = ?", [roomCode, "1"], function (err, row) {
         if (err) {
             console.error('Error executing select query:', err.message);
-            return next(err);
+            return res.status(500).json({ error: 'サーバーエラーが発生しました' });
         }
 
         // 部屋が見つからなかった場合
         if (!row) {
-            return res.status(404).json({ message: "Room not found or not in status 1" });
+            return res.status(200).json({ message: "Room error: perhaps not started?", errorCode: "not-registered" });
         }
 
         // 部屋が見つかった場合、Statusを"Started"に更新
-        db.run("UPDATE Rooms SET Status = ? WHERE RoomID = ?", ["Started", roomCode], function (err) {
+        db.run("UPDATE Rooms SET Status = ? WHERE RoomID = ? AND Status = 1", ["Started", roomCode], function (err) {
             if (err) {
                 console.error('Error executing update query:', err.message);
-                return next(err);
+                return res.status(500).json({ error: 'サーバーエラーが発生しました' });
             }
 
             // 更新が完了したら、部屋の情報を返す
-            return res.json(row);
+            return res.status(200).json(row);
         });
     });
 });
+
 //& end
 //? Function to get currentrooms' status
 
