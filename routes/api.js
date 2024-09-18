@@ -1152,6 +1152,7 @@ const getRandomQuestion = (level, GroupId, res, next, attemptCounter) => {
                 }
                 if (ansStateRows.length > 0) {
                     if (ansStateRows[0].Result != "Correct") {
+                        console.log(rows);
                         return res.json(rows);
                     } else {
                         getRandomQuestion(level, GroupId, res, next, attemptCounter);
