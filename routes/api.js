@@ -1151,13 +1151,14 @@ const getRandomQuestion = (level, GroupId, res, next, attemptCounter) => {
                     return next(err);
                 }
                 if (ansStateRows.length > 0) {
-                    if (ansStateRows[0].Result != "Correct") {
-                        console.log(rows);
+                    console.log(rows);
+                    if (ansStateRows[0].Result != "Correct" || ansStateRows[0].Result != "Wrong") {
                         return res.json(rows);
                     } else {
                         getRandomQuestion(level, GroupId, res, next, attemptCounter);
                     }
                 } else {
+                    console.log(rows);
                     return res.json(rows);
                 }
             });
