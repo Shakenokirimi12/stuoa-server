@@ -98,8 +98,7 @@ router.post('/adminui/regChallenge', function (req, res) {
                             return res.status(500).json({ success: false, message: 'Database error' });
                         }
 
-                        const hasActiveChallenges = activeCountRow.ActiveCount > 0;
-                        const challengeState = hasActiveChallenges ? 'Pending' : 'Playing';
+                        const challengeState = 'Registered';
                         const ChallengeId = require('crypto').randomUUID();
 
                         const addChallengeSql = `
@@ -110,7 +109,7 @@ router.post('/adminui/regChallenge', function (req, res) {
                             groupId,
                             difficulty,
                             roomID,
-                            new Date().toISOString(), // StartTime as ISO string
+                            null,
                             challengeState,
                             ChallengeId
                         ];
@@ -139,7 +138,7 @@ router.post('/adminui/regChallenge', function (req, res) {
                                 const nextStatus = (currentStatus + 1).toString();
 
                                 const addRoomSql = `
-                                    INSERT INTO Rooms (RoomID, GroupName, GroupId, Difficulty, MemberCount, Status, StartTime ,ChallengeId)
+                                    INSERT INTO Rooms (RoomID, GroupName, GroupId, Difficulty, MemberCount, Status, RegisteredTime ,ChallengeId)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                                 `;
                                 const addRoomParams = [
@@ -149,7 +148,7 @@ router.post('/adminui/regChallenge', function (req, res) {
                                     difficulty,
                                     playerCount,
                                     nextStatus,
-                                    new Date().toISOString(), // StartTime as ISO string
+                                    new Date().toISOString(),
                                     ChallengeId
                                 ];
 
@@ -344,37 +343,23 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
     }
 
     function addChallengeAndRoom(groupId, roomID) {
-        const checkActiveChallengesSql = `
-            SELECT COUNT(*) AS ActiveCount
-            FROM Challenges
-            WHERE RoomID = ? AND State = 'Playing'
-        `;
-        db.get(checkActiveChallengesSql, [roomID], function (err, activeCountRow) {
+        const challengeState = 'Registered';
+        const ChallengeId = require('crypto').randomUUID();
+
+        const addChallengeSql = `
+                INSERT INTO Challenges (GroupId, Difficulty, RoomID, StartTime, State, ChallengeId)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `;
+        const addChallengeParams = [groupId, difficulty, roomID, null, challengeState, ChallengeId];
+
+        db.run(addChallengeSql, addChallengeParams, function (err) {
             if (err) {
-                console.error('Error checking active challenges', err.message);
+                console.error('Error inserting challenge', err.message);
                 db.run('ROLLBACK');
                 return res.status(500).json({ success: false, message: 'Database error' });
             }
 
-            const hasActiveChallenges = activeCountRow.ActiveCount > 0;
-            const challengeState = hasActiveChallenges ? 'Pending' : 'Playing';
-            const ChallengeId = require('crypto').randomUUID();
-
-            const addChallengeSql = `
-                INSERT INTO Challenges (GroupId, Difficulty, RoomID, StartTime, State, ChallengeId)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `;
-            const addChallengeParams = [groupId, difficulty, roomID, new Date().toISOString(), challengeState, ChallengeId];
-
-            db.run(addChallengeSql, addChallengeParams, function (err) {
-                if (err) {
-                    console.error('Error inserting challenge', err.message);
-                    db.run('ROLLBACK');
-                    return res.status(500).json({ success: false, message: 'Database error' });
-                }
-
-                addRoomEntry(groupId, roomID, ChallengeId);
-            });
+            addRoomEntry(groupId, roomID, ChallengeId);
         });
     }
 
@@ -391,10 +376,10 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
             const nextStatus = (currentStatus + 1).toString();
 
             const addRoomSql = `
-                INSERT INTO Rooms (RoomID, GroupName, GroupId, Difficulty, MemberCount, Status, StartTime, ChallengeId)
+                INSERT INTO Rooms (RoomID, GroupName, GroupId, Difficulty, MemberCount, Status, RegisteredTime, ChallengeId)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `;
-            const addRoomParams = [roomID, GroupName, groupId, difficulty, playerCount, nextStatus, new Date().toISOString(), ChallengeId];
+            const addRoomParams = [roomID, GroupName, groupId, difficulty, playerCount, nextStatus, null, ChallengeId];
 
             db.run(addRoomSql, addRoomParams, function (err) {
                 if (err) {
@@ -516,7 +501,7 @@ router.get('/adminui/groups/:GroupId/getCertificate', (req, res) => {
         const getLatestChallengeSql = `
             SELECT Difficulty 
             FROM Challenges 
-            WHERE GroupId = ? 
+            WHERE GroupId = ? AND State = 'Cleared' 
             ORDER BY StartTime DESC 
             LIMIT 1`;
 
@@ -850,31 +835,6 @@ router.get('/adminui/stats/:QuestionId', function (req, res, next) {
     });
 });
 
-//? Pathname to update challanger info.
-router.put('/adminui/rooms/update/:ChallengeId', function (req, res) {
-    const { ChallengeId } = req.params;
-    const { difficulty, memberCount, status, startTime } = req.body;
-
-    if (!ChallengeId || !difficulty || memberCount == null || !status || !startTime) {
-        return res.status(400).json({ success: false, message: 'Invalid data' });
-    }
-
-    const updateRoomSql = `
-        UPDATE Rooms
-        SET Difficulty = ?, MemberCount = ?, Status = ?, StartTime = ?
-        WHERE ChallengeId = ?
-    `;
-    const updateRoomParams = [difficulty, memberCount, status, startTime, ChallengeId];
-
-    db.run(updateRoomSql, updateRoomParams, function (err) {
-        if (err) {
-            console.error('Error updating room', err.message);
-            return res.status(500).json({ success: false, message: 'Database error' });
-        }
-        return res.status(200).json({ success: true, message: 'Room successfully updated' });
-    });
-});
-
 //? Pathname to add answer info.
 router.post('/client/answer/register', function (req, res) {
     const { GroupId, QuestionId, Result, ChallengerAnswer } = req.body;
@@ -945,7 +905,6 @@ router.post('/client/finish/:roomCode', function (req, res) {
     // Start a transaction to ensure data consistency
     db.run('BEGIN TRANSACTION', function (err) {
         if (err) {
-            console.error('Error starting transaction', err.message, err.stack);
             return res.status(500).json({ success: false, message: 'Database error at 633', error: err.stack });
         }
 
@@ -954,18 +913,12 @@ router.post('/client/finish/:roomCode', function (req, res) {
             SELECT * FROM Rooms WHERE RoomID = ?
         `;
         db.get(getChallengeIdSql, [roomCode], function (err, row) {
-            if (err) {
-                console.error('Error retrieving ChallengeId', err.message, err.stack);
+            if (err || !row) {
                 db.run('ROLLBACK');
-                return res.status(500).json({ success: false, message: 'Database error at 644', error: err.stack });
+                return res.status(err ? 500 : 404).json({ success: false, message: err ? 'Database error at 644' : 'Room not found' });
             }
 
-            if (!row) {
-                db.run('ROLLBACK');
-                return res.status(404).json({ success: false, message: 'Room not found' });
-            }
-
-            const { ChallengeId, GroupId, Difficulty } = row;
+            const { ChallengeId, GroupId, Difficulty, GroupName } = row;
 
             // Delete the room with the specified RoomCode if it is 'Started'
             const deleteActiveRoomSql = `
@@ -973,85 +926,84 @@ router.post('/client/finish/:roomCode', function (req, res) {
             `;
             db.run(deleteActiveRoomSql, [roomCode], function (err) {
                 if (err) {
-                    console.error('Error deleting active room', err.message, err.stack);
                     db.run('ROLLBACK');
                     return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                 }
 
                 // Update the corresponding Challenge
                 const updateChallengeSql = `
-                    UPDATE Challenges
-                    SET State = ?
-                    WHERE ChallengeId = ?
+                    UPDATE Challenges SET State = ? WHERE ChallengeId = ?
                 `;
                 db.run(updateChallengeSql, [result, ChallengeId], function (err) {
                     if (err) {
-                        console.error('Error updating challenge', err.message, err.stack);
                         db.run('ROLLBACK');
                         return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                     }
 
                     // Update statuses for remaining rooms
                     const updateStatusesSql = `
-                        UPDATE Rooms
-                        SET Status = CAST(Status AS INTEGER) - 1
-                        WHERE RoomID = ?
+                        UPDATE Rooms SET Status = CAST(Status AS INTEGER) - 1 WHERE RoomID = ?
                     `;
                     db.run(updateStatusesSql, [roomCode], function (err) {
                         if (err) {
-                            console.error('Error updating statuses', err.message, err.stack);
                             db.run('ROLLBACK');
                             return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                         }
 
                         if (result === "Cleared") {
-                            let SnackCount;
-                            if (Difficulty === 1 || Difficulty === 2) {
-                                SnackCount = 3;
-                            } else if (Difficulty === 3) {
-                                SnackCount = 4;
-                            } else if (Difficulty === 4) {
-                                SnackCount = 5;
-                            }
+                            const SnackCount = [3, 4, 5][Difficulty - 1] || 0; // Adjust based on difficulty
 
                             // Update WasCleared and SnackState in the Groups table
                             const updateClearStatusesSql = `
-                                UPDATE Groups
-                                SET WasCleared = CASE
-                                    WHEN WasCleared = '0' THEN '1'
-                                    ELSE WasCleared
-                                END,
-                                SnackState = CASE
-                                    WHEN SnackState = '0' THEN ?
-                                    ELSE SnackState
-                                END
-                                WHERE GroupId = ?
+                                UPDATE Groups SET WasCleared = CASE WHEN WasCleared = '0' THEN '1' ELSE WasCleared END,
+                                SnackState = CASE WHEN SnackState = '0' THEN ? ELSE SnackState END WHERE GroupId = ?
                             `;
                             db.run(updateClearStatusesSql, [SnackCount, GroupId], function (err) {
                                 if (err) {
-                                    console.error('Error updating clear statuses', err.message, err.stack);
                                     db.run('ROLLBACK');
                                     return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                                 }
 
-                                // Commit transaction
-                                db.run('COMMIT', function (err) {
-                                    if (err) {
-                                        console.error('Error committing transaction', err.message, err.stack);
+                                // Calculate elapsed time and insert it into ClearTimes
+                                const getChallengeSql = `
+                                    SELECT StartTime FROM Challenges WHERE ChallengeId = ?
+                                `;
+                                db.get(getChallengeSql, [ChallengeId], function (err, challengeRow) {
+                                    if (err || !challengeRow) {
                                         db.run('ROLLBACK');
-                                        return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
+                                        return res.status(err ? 500 : 404).json({ success: false, message: err ? 'Database error' : 'Challenge not found' });
                                     }
 
-                                    console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
-                                    return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
+                                    const { StartTime } = challengeRow;
+                                    const currentTime = new Date();
+                                    const startDate = new Date(StartTime);
+                                    const diffSeconds = Math.floor((currentTime - startDate) / 1000);
+
+                                    const updateClearTimeSql = `
+                                        INSERT INTO ClearTimes (ElapsedTime, ChallengeId, Difficulty, GroupName)
+                                        VALUES (?, ?, ?, ?);
+                                    `;
+                                    db.run(updateClearTimeSql, [diffSeconds, ChallengeId, Difficulty, GroupName], function (err) {
+                                        if (err) {
+                                            db.run('ROLLBACK');
+                                            return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
+                                        }
+
+                                        db.run('COMMIT', function (err) {
+                                            if (err) {
+                                                return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
+                                            }
+
+                                            console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
+                                            return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
+                                        });
+                                    });
                                 });
                             });
                         } else {
                             // Commit transaction for 'Failed' result
                             db.run('COMMIT', function (err) {
                                 if (err) {
-                                    console.error('Error committing transaction', err.message, err.stack);
-                                    db.run('ROLLBACK');
                                     return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                                 }
 
@@ -1127,6 +1079,14 @@ router.get('/client/startGame/:roomCode', function (req, res) {
         if (!row) {
             return res.status(200).json({ message: "Room error: perhaps not started?", errorCode: "not-registered" });
         }
+
+        db.run(`UPDATE Challenges SET StartTime = ?, State = 'Started' WHERE ChallengeId = ? AND StartTime IS NULL AND State = 'Registered'`, [new Date().toISOString(), row.ChallengeId], function (err) {
+            if (err) {
+                StartTime
+                console.error('Error executing update query:', err.message);
+                return res.status(500).json({ error: 'サーバーエラーが発生しました' });
+            }
+        });
 
         // 部屋が見つかった場合、Statusを"Started"に更新
         db.run("UPDATE Rooms SET Status = ? WHERE RoomID = ? AND Status = 1", ["Started", roomCode], function (err) {
@@ -1351,10 +1311,36 @@ router.get('/plug/:ip/switch/loop/:count', async function (req, res, next) {
 });
 //! DO NOT USE REGULARY!
 
+//? endpoint to get rankings.
+router.get('/cleartimes', function (req, res) {
+    const { difficulty } = req.query;
+
+    if (!difficulty) {
+        return res.status(400).json({ success: false, message: 'Difficulty parameter is required' });
+    }
+
+    const getClearTimesSql = `
+        SELECT * FROM ClearTimes
+        WHERE Difficulty = ?
+        ORDER BY ElapsedTime ASC
+    `;
+
+    db.all(getClearTimesSql, [difficulty], function (err, rows) {
+        if (err) {
+            console.error('Error retrieving clear times', err.message, err.stack);
+            return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
+        }
+
+        return res.status(200).json({ success: true, data: rows });
+    });
+});
+
+
 
 //? endpoint to check server availability.
 router.get('/alive', function (req, res, next) {
     return res.send('Server connection is Okay!');
 });
+
 
 module.exports = router;
