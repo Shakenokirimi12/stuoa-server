@@ -379,7 +379,7 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
                 INSERT INTO Rooms (RoomID, GroupName, GroupId, Difficulty, MemberCount, Status, RegisteredTime, ChallengeId)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `;
-            const addRoomParams = [roomID, GroupName, groupId, difficulty, playerCount, nextStatus, null, ChallengeId];
+            const addRoomParams = [roomID, GroupName, groupId, difficulty, playerCount, nextStatus, new Date().toISOString(), ChallengeId];
 
             db.run(addRoomSql, addRoomParams, function (err) {
                 if (err) {
@@ -483,156 +483,24 @@ router.get('/adminui/groups/:GroupId', (req, res) => {
 });
 
 
+
 router.get('/adminui/groups/:GroupId/getCertificate', (req, res) => {
     const { GroupId } = req.params;
     const getGroupSql = `SELECT * FROM Groups WHERE GroupId = ? AND WasCleared = '1'`;
-
-    db.get(getGroupSql, [GroupId], (err, row) => {
+    db.get(getGroupSql, [GroupId], (err, groupRow) => {
         if (err) {
             console.error('Error fetching Groups', err.message);
             return res.status(500).json({ success: false, message: 'Database error' });
         }
 
-        if (!row) {
+        if (!groupRow) {
             return res.status(404).json({ success: false, message: 'Group not found' });
         }
-
+        let { Name } = groupRow;
+        console.log(groupRow)
         // Query to get the latest challenge's difficulty for the given GroupId
         const getLatestChallengeSql = `
-            SELECT Difficulty 
-            FROM Challenges 
-            WHERE GroupId = ? AND State = 'Cleared' 
-            ORDER BY StartTime DESC 
-            LIMIT 1`;
-
-        db.get(getLatestChallengeSql, [GroupId], (err, challengeRow) => {
-            if (err) {
-                console.error('Error fetching challenge', err.message);
-                return res.status(500).json({ success: false, message: 'Database error' });
-            }
-
-            if (!challengeRow) {
-                return res.status(404).json({ success: false, message: 'No challenges found for this group' });
-            }
-
-            let difficulty = challengeRow.Difficulty;
-            switch (difficulty) {
-                case 1:
-                    difficulty = "初級"
-                    break;
-                case 2:
-                    difficulty = "中級"
-                    break;
-                case 3:
-                    difficulty = "上級"
-                    break;
-                case 4:
-                    difficulty = "超級"
-                    break;
-            }
-            const date = new Date();
-            const d = ('0' + date.getDate()).slice(-2);
-            const unixTimestamp = Math.floor(date.getTime() / 1000);
-            const templateFilePath = path.join(__dirname, '../pdf/template.pdf');
-            const saveDestination = path.join(__dirname, '../pdf/output', `${unixTimestamp}.pdf`);
-
-            let { Name } = row;
-
-            try {
-                const pdfWriter = hummus.createWriterToModify(
-                    templateFilePath,
-                    { modifiedFilePath: saveDestination }
-                );
-
-                const pageModifier = new hummus.PDFPageModifier(pdfWriter, 0);
-                const font = pdfWriter.getFontForFile(path.join(__dirname, '../pdf/NotoSansJP-Regular.ttf'));
-
-                pageModifier.startContext().getContext().writeText(
-                    Name,
-                    130, 570,
-                    {
-                        font: font,
-                        size: 35,
-                        colorspace: "gray",
-                        color: 0x00
-                    }
-                );
-
-                pageModifier.startContext().getContext().writeText(
-                    d,
-                    510, 250,
-                    {
-                        font: font,
-                        size: 30,
-                        colorspace: "rgb",
-                        color: 0x00
-                    }
-                );
-
-                pageModifier.startContext().getContext().writeText(
-                    "クリア難易度:" + difficulty,
-                    170, 330,
-                    {
-                        font: font,
-                        size: 30,
-                        colorspace: "rgb",
-                        color: 0x00
-                    }
-                );
-
-                pageModifier.endContext().writePage();
-                pdfWriter.end();
-            } catch (ex) {
-                return res.status(404).send('Failed to generate pdf: ' + ex.message);
-            }
-
-            // Check if the template file exists
-            fs.stat(saveDestination, (err, stats) => {
-                if (err || !stats.isFile()) {
-                    return res.status(404).send('File not found');
-                }
-
-                // Update Group in the database
-                const updateGroupSql = `
-                UPDATE Groups 
-                SET WasCleared = CASE
-                  WHEN WasCleared = '1' THEN '2'
-                  ELSE WasCleared 
-                END
-                WHERE GroupId = ?`;
-
-                db.run(updateGroupSql, [GroupId], (err) => {
-                    if (err) {
-                        console.error('Error updating Groups', err.message);
-                        return res.status(500).json({ success: false, message: 'Database error' });
-                    }
-
-                    // Send the PDF file as a response
-                    return res.status(200).json({ success: true, filename: unixTimestamp + ".pdf" });
-                });
-            });
-        });
-    });
-});
-
-
-router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
-    const { GroupId } = req.params;
-    const getGroupSql = `SELECT * FROM Groups WHERE GroupId = ? AND WasCleared = '2'`;
-
-    db.get(getGroupSql, [GroupId], (err, row) => {
-        if (err) {
-            console.error('Error fetching Groups', err.message);
-            return res.status(500).json({ success: false, message: 'Database error' });
-        }
-
-        if (!row) {
-            return res.status(404).json({ success: false, message: 'Group not found' });
-        }
-
-        // Query to get the latest challenge's difficulty for the given GroupId
-        const getLatestChallengeSql = `
-            SELECT Difficulty 
+            SELECT * 
             FROM Challenges 
             WHERE GroupId = ? 
             ORDER BY StartTime DESC 
@@ -647,7 +515,6 @@ router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
             if (!challengeRow) {
                 return res.status(404).json({ success: false, message: 'No challenges found for this group' });
             }
-
             let difficulty = challengeRow.Difficulty;
             switch (difficulty) {
                 case 1:
@@ -666,82 +533,267 @@ router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
             const date = new Date();
             const d = ('0' + date.getDate()).slice(-2);
             const unixTimestamp = Math.floor(date.getTime() / 1000);
-            const templateFilePath = path.join(__dirname, '../pdf/template.pdf');
-            const saveDestination = path.join(__dirname, '../pdf/output', `${unixTimestamp}.pdf`);
 
-            let { Name } = row;
+            let { ChallengeId } = challengeRow;
+            const getClearTimeSql = `
+                SELECT * FROM ClearTimes
+                WHERE ChallengeId = ?
+                ORDER BY ElapsedTime ASC
+                LIMIT 1
+            `;
 
-            try {
-                const pdfWriter = hummus.createWriterToModify(
-                    templateFilePath,
-                    { modifiedFilePath: saveDestination }
-                );
+            db.get(getClearTimeSql, [ChallengeId], function (err, Challengerow) {
+                if (err) {
+                    console.error('Error retrieving clear times', err.message, err.stack);
+                    return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
+                }
+                let clearTime = formatElapsedTime(Challengerow.ElapsedTime)
 
-                const pageModifier = new hummus.PDFPageModifier(pdfWriter, 0);
-                const font = pdfWriter.getFontForFile(path.join(__dirname, '../pdf/NotoSansJP-Regular.ttf'));
 
-                pageModifier.startContext().getContext().writeText(
-                    Name,
-                    130, 570,
-                    {
-                        font: font,
-                        size: 35,
-                        colorspace: "gray",
-                        color: 0x00
-                    }
-                );
+                const templateFilePath = path.join(__dirname, '../pdf/template.pdf');
+                const saveDestination = path.join(__dirname, '../pdf/output', `${unixTimestamp}.pdf`);
 
-                pageModifier.startContext().getContext().writeText(
-                    d,
-                    510, 250,
-                    {
-                        font: font,
-                        size: 30,
-                        colorspace: "rgb",
-                        color: 0x00
-                    }
-                );
+                try {
+                    const pdfWriter = hummus.createWriterToModify(
+                        templateFilePath,
+                        { modifiedFilePath: saveDestination }
+                    );
 
-                pageModifier.startContext().getContext().writeText(
-                    "クリア難易度:" + difficulty,
-                    170, 330,
-                    {
-                        font: font,
-                        size: 30,
-                        colorspace: "rgb",
-                        color: 0x00
-                    }
-                );
+                    const pageModifier = new hummus.PDFPageModifier(pdfWriter, 0);
+                    const font = pdfWriter.getFontForFile(path.join(__dirname, '../pdf/NotoSansJP-Regular.ttf'));
 
-                pageModifier.endContext().writePage();
-                pdfWriter.end();
-            } catch (ex) {
-                return res.status(404).send('Failed to generate pdf: ' + ex.message);
-            }
+                    pageModifier.startContext().getContext().writeText(
+                        Name,
+                        130, 570,
+                        {
+                            font: font,
+                            size: 35,
+                            colorspace: "gray",
+                            color: 0x00
+                        }
+                    );
 
-            // Check if the template file exists
-            fs.stat(saveDestination, (err, stats) => {
-                if (err || !stats.isFile()) {
-                    return res.status(404).send('File not found');
+                    pageModifier.startContext().getContext().writeText(
+                        d,
+                        510, 250,
+                        {
+                            font: font,
+                            size: 30,
+                            colorspace: "rgb",
+                            color: 0x00
+                        }
+                    );
+
+                    pageModifier.startContext().getContext().writeText(
+                        "クリア難易度:" + difficulty,
+                        170, 330,
+                        {
+                            font: font,
+                            size: 30,
+                            colorspace: "rgb",
+                            color: 0x00
+                        }
+                    );
+
+                    pageModifier.startContext().getContext().writeText(
+                        "クリアタイム:" + clearTime,
+                        150, 290,
+                        {
+                            font: font,
+                            size: 30,
+                            colorspace: "rgb",
+                            color: 0x00
+                        }
+                    );
+
+                    pageModifier.endContext().writePage();
+                    pdfWriter.end();
+                } catch (ex) {
+                    return res.status(404).send('Failed to generate pdf: ' + ex.message);
                 }
 
-                // Update Group in the database
-                const updateGroupSql = `
-                UPDATE Groups 
-                SET WasCleared = CASE
-                  WHEN WasCleared = '1' THEN '2'
-                  ELSE WasCleared 
-                END
-                WHERE GroupId = ?`;
-
-                db.run(updateGroupSql, [GroupId], (err) => {
-                    if (err) {
-                        console.error('Error updating Groups', err.message);
-                        return res.status(500).json({ success: false, message: 'Database error' });
+                // Check if the template file exists
+                fs.stat(saveDestination, (err, stats) => {
+                    if (err || !stats.isFile()) {
+                        return res.status(404).send('File not found');
                     }
 
-                    // Send the PDF file as a response
-                    return res.status(200).json({ success: true, filename: unixTimestamp + ".pdf" });
+                    // Update Group in the database
+                    const updateGroupSql = `
+                    UPDATE Groups 
+                    SET WasCleared = CASE
+                      WHEN WasCleared = '1' THEN '2'
+                      ELSE WasCleared 
+                    END
+                    WHERE GroupId = ?`;
+
+                    db.run(updateGroupSql, [GroupId], (err) => {
+                        if (err) {
+                            console.error('Error updating Groups', err.message);
+                            return res.status(500).json({ success: false, message: 'Database error' });
+                        }
+
+                        // Send the PDF file as a response
+                        return res.status(200).json({ success: true, filename: unixTimestamp + ".pdf" });
+                    });
+                });
+            });
+        });
+    });
+});
+
+router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
+    const { GroupId } = req.params;
+    const getGroupSql = `SELECT * FROM Groups WHERE GroupId = ? AND WasCleared = '2'`;
+    db.get(getGroupSql, [GroupId], (err, groupRow) => {
+        if (err) {
+            console.error('Error fetching Groups', err.message);
+            return res.status(500).json({ success: false, message: 'Database error' });
+        }
+
+        if (!groupRow) {
+            return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+        let { Name } = groupRow;
+        console.log(groupRow)
+        // Query to get the latest challenge's difficulty for the given GroupId
+        const getLatestChallengeSql = `
+            SELECT * 
+            FROM Challenges 
+            WHERE GroupId = ? 
+            ORDER BY StartTime DESC 
+            LIMIT 1`;
+
+        db.get(getLatestChallengeSql, [GroupId], (err, challengeRow) => {
+            if (err) {
+                console.error('Error fetching challenge', err.message);
+                return res.status(500).json({ success: false, message: 'Database error' });
+            }
+
+            if (!challengeRow) {
+                return res.status(404).json({ success: false, message: 'No challenges found for this group' });
+            }
+            let difficulty = challengeRow.Difficulty;
+            switch (difficulty) {
+                case 1:
+                    difficulty = "初級"
+                    break;
+                case 2:
+                    difficulty = "中級"
+                    break;
+                case 3:
+                    difficulty = "上級"
+                    break;
+                case 4:
+                    difficulty = "超級"
+                    break;
+            }
+            const date = new Date();
+            const d = ('0' + date.getDate()).slice(-2);
+            const unixTimestamp = Math.floor(date.getTime() / 1000);
+
+            let { ChallengeId } = challengeRow;
+            const getClearTimeSql = `
+                SELECT * FROM ClearTimes
+                WHERE ChallengeId = ?
+                ORDER BY ElapsedTime ASC
+                LIMIT 1
+            `;
+
+            db.get(getClearTimeSql, [ChallengeId], function (err, Challengerow) {
+                if (err) {
+                    console.error('Error retrieving clear times', err.message, err.stack);
+                    return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
+                }
+                let clearTime = formatElapsedTime(Challengerow.ElapsedTime)
+
+
+                const templateFilePath = path.join(__dirname, '../pdf/template.pdf');
+                const saveDestination = path.join(__dirname, '../pdf/output', `${unixTimestamp}.pdf`);
+
+                try {
+                    const pdfWriter = hummus.createWriterToModify(
+                        templateFilePath,
+                        { modifiedFilePath: saveDestination }
+                    );
+
+                    const pageModifier = new hummus.PDFPageModifier(pdfWriter, 0);
+                    const font = pdfWriter.getFontForFile(path.join(__dirname, '../pdf/NotoSansJP-Regular.ttf'));
+
+                    pageModifier.startContext().getContext().writeText(
+                        Name,
+                        130, 570,
+                        {
+                            font: font,
+                            size: 35,
+                            colorspace: "gray",
+                            color: 0x00
+                        }
+                    );
+
+                    pageModifier.startContext().getContext().writeText(
+                        d,
+                        510, 250,
+                        {
+                            font: font,
+                            size: 30,
+                            colorspace: "rgb",
+                            color: 0x00
+                        }
+                    );
+
+                    pageModifier.startContext().getContext().writeText(
+                        "クリア難易度:" + difficulty,
+                        170, 330,
+                        {
+                            font: font,
+                            size: 30,
+                            colorspace: "rgb",
+                            color: 0x00
+                        }
+                    );
+
+                    pageModifier.startContext().getContext().writeText(
+                        "クリアタイム:" + clearTime,
+                        150, 290,
+                        {
+                            font: font,
+                            size: 30,
+                            colorspace: "rgb",
+                            color: 0x00
+                        }
+                    );
+
+                    pageModifier.endContext().writePage();
+                    pdfWriter.end();
+                } catch (ex) {
+                    return res.status(404).send('Failed to generate pdf: ' + ex.message);
+                }
+
+                // Check if the template file exists
+                fs.stat(saveDestination, (err, stats) => {
+                    if (err || !stats.isFile()) {
+                        return res.status(404).send('File not found');
+                    }
+
+                    // Update Group in the database
+                    const updateGroupSql = `
+                    UPDATE Groups 
+                    SET WasCleared = CASE
+                      WHEN WasCleared = '1' THEN '2'
+                      ELSE WasCleared 
+                    END
+                    WHERE GroupId = ?`;
+
+                    db.run(updateGroupSql, [GroupId], (err) => {
+                        if (err) {
+                            console.error('Error updating Groups', err.message);
+                            return res.status(500).json({ success: false, message: 'Database error' });
+                        }
+
+                        // Send the PDF file as a response
+                        return res.status(200).json({ success: true, filename: unixTimestamp + ".pdf" });
+                    });
                 });
             });
         });
@@ -1335,6 +1387,11 @@ router.get('/cleartimes', function (req, res) {
     });
 });
 
+const formatElapsedTime = (elapsedTime) => {
+    const minutes = Math.floor(elapsedTime / 60);
+    const seconds = elapsedTime % 60;
+    return `${minutes}分 ${seconds}秒`;
+};
 
 
 //? endpoint to check server availability.
