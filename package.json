@@ -2,6 +2,7 @@
   "name": "efuoa-server",
   "version": "0.0.0",
   "private": true,
+
   "scripts": {
     "start": "node ./bin/www"
   },
@@ -14,6 +15,7 @@
     "hummus": "^1.0.117",
     "jade": "^0.29.0",
     "morgan": "~1.9.1",
+    "node-fetch": "^3.3.2",
     "sqlite3": "^5.1.7",
     "tplink-smarthome-api": "^5.0.0",
     "ws": "^8.18.0"

@@ -61,6 +61,55 @@ app.use(function (err, req, res, next) {
   res.render('error');
 });
 
+// uncaughtException: プログラム全体でキャッチされなかったエラーをキャッチ
+process.on('uncaughtException', async (err) => {
+  console.error('Uncaught Exception:', err);
+
+  // fetchの動的インポート
+  const fetch = (await import('node-fetch')).default;
+
+  // エラーデータを外部サーバーに送信
+  await sendErrorReport(fetch, err.message);
+
+  // 必要に応じてアプリケーションを停止
+  process.exit(1); // プロセスを終了 (0: 成功, 1: エラー)
+});
+
+// unhandledRejection: Promiseの処理に失敗した場合
+process.on('unhandledRejection', async (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
+
+  // fetchの動的インポート
+  const fetch = (await import('node-fetch')).default;
+
+  // エラーデータを外部サーバーに送信
+  await sendErrorReport(fetch, reason);
+
+  // 必要に応じてアプリケーションを停止
+  process.exit(1);
+});
+
+// エラーレポートを送信する関数
+async function sendErrorReport(fetch, errorMessage) {
+  try {
+    const response = await fetch('https://stuoa-warning.ken20051205.workers.dev/', { // ここに送信先URLを指定
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: errorMessage + '\r\n' + new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      console.log('Error report sent successfully.');
+    } else {
+      console.error('Failed to send error report:', response.statusText);
+    }
+  } catch (error) {
+    console.error('Error sending report:', error);
+  }
+}
+
 // Create interface for input
 const rl = readline.createInterface({
   input: process.stdin,

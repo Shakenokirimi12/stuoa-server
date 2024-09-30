@@ -5,6 +5,7 @@ var express = require('express');
 var router = express.Router();
 var path = require('path');
 let hummus = require('hummus')
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args)); // 動的インポート
 
 //? pathname to check if error is opening.
 router.get('/adminui/errorcheck', function (req, res) {
@@ -1223,17 +1224,17 @@ router.post('/client/errorReport', function (req, res) {
     const { error, location } = req.body;
 
     if (error && location) {
-        // Insert the error into the database
+        // データベースにエラーを挿入
         const sql = `
         INSERT INTO Errors (ErrorId, Description, IsSolved, FromWhere, ReportedTime)
         VALUES (?, ?, ?, ?, ?)
       `;
         const params = [
-            require('crypto').randomUUID(),  // Generates a unique ErrorId
+            crypto.randomUUID(),  // 一意のErrorIdを生成
             error,
-            0,  // IsSolved is set to 0 (false)
+            0,  // IsSolvedは0 (未解決)に設定
             location,
-            new Date().toISOString({ timeZone: "Asia/Tokyo" })  // Current timestamp
+            new Date().toISOString({ timeZone: "Asia/Tokyo" })  // 現在のタイムスタンプ
         ];
 
         db.run(sql, params, function (err) {
@@ -1242,15 +1243,50 @@ router.post('/client/errorReport', function (req, res) {
                 return res.status(500).send('Database error');
             }
 
-            // Log error to the console in red
+            // コンソールに赤色でエラーを表示
             console.log('\x1b[31m%s\x1b[0m', `Error reported: ${error}\nLocation: ${location}`);
 
-            return res.status(200).send('Error reported');
+            // エラーデータを外部サーバーに送信
+            sendErrorToExternalServer({ error, location })
+                .then(() => {
+                    // 成功時のレスポンス
+                    return res.status(200).send('Error reported and sent to external server');
+                })
+                .catch((fetchError) => {
+                    // fetchリクエストが失敗してもエラーデータはDBに保存されている
+                    console.error('Failed to send error to external server:', fetchError.message);
+                    return res.status(200).send('Error reported but failed to send to external server');
+                });
         });
     } else {
         return res.status(400).send('Invalid data');
     }
 });
+
+
+// エラーデータを外部サーバーに送信する非同期関数
+async function sendErrorToExternalServer({ error, location }) {
+    const url = 'https://stuoa-warning.ken20051205.workers.dev/'; // エラー報告を送る外部サーバーのURLを指定
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({  // JSON形式でデータを送信
+                message: "error: " + error + "\r\n" + "場所: " + location + "\r\nTime: " + new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server responded with status ${response.status}: ${response.statusText}`);
+        }
+
+        console.log('Error successfully sent to external server.');
+    } catch (error) {
+        console.error('Error sending to external server:', error.message);
+        throw error; // fetchエラーが発生した場合は呼び出し元でキャッチされる
+    }
+}
 
 
 
