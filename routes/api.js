@@ -400,7 +400,6 @@ router.get('/adminui/groups/:GroupId/getCertificate', (req, res) => {
             return res.status(404).json({ success: false, message: 'Group not found' });
         }
         let { Name } = groupRow;
-        console.log(groupRow)
         // Query to get the latest challenge's difficulty for the given GroupId
         const getLatestChallengeSql = `
             SELECT * 
@@ -558,7 +557,6 @@ router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
             return res.status(404).json({ success: false, message: 'Group not found' });
         }
         let { Name } = groupRow;
-        console.log(groupRow)
         // Query to get the latest challenge's difficulty for the given GroupId
         const getLatestChallengeSql = `
             SELECT * 
@@ -949,7 +947,6 @@ router.post('/client/finish/:roomCode', function (req, res) {
                                                 return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                                             }
 
-                                            console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
                                             return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
                                         });
                                     });
@@ -962,7 +959,6 @@ router.post('/client/finish/:roomCode', function (req, res) {
                                     return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                                 }
 
-                                console.log(`Room with room code ${roomCode} and corresponding challenge processed successfully`);
                                 return res.status(200).json({ success: true, message: 'Room and challenge processed successfully' });
                             });
                         }
@@ -1092,8 +1088,6 @@ const getRandomQuestion = (level, GroupId, res, next, attemptCounter = 0) => {
                     console.log(`Question ${json.ID} already answered. Retrying... Attempt: ${attemptCounter + 1}`);
                     getRandomQuestion(level, GroupId, res, next, attemptCounter + 1);
                 } else {
-                    // Found a valid question
-                    console.log(rows);
                     return res.json(rows);
                 }
             });
