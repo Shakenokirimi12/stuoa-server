@@ -112,7 +112,18 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
                         db.run('ROLLBACK');
                         return res.status(409).json({ success: false, message: 'Group name already exists. Set dupCheck to true to proceed.' });
                     }
-                    validateAndAssignRoom(row.GroupId);
+                    console.log(row)
+                    const updateGroupSql = `
+                        UPDATE Groups SET ChallengesCount = ChallengesCount + 1 WHERE GroupId = ?
+                    `;
+                    db.run(updateGroupSql, [row.GroupId], function (err) {
+                        if (err) {
+                            console.error('Error updating group', err.message);
+                            db.run('ROLLBACK');
+                            return res.status(500).json({ success: false, message: 'Database error' });
+                        }
+                        validateAndAssignRoom(row.GroupId);
+                    });
                 } else {
                     // Group doesn't exist, create new GroupId
                     const groupId = require('crypto').randomUUID();
@@ -237,22 +248,32 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
     }
 
     function addRoomEntry(groupId, roomID, ChallengeId) {
-        const getMaxStatusSql = `SELECT MAX(CAST(Status AS INTEGER)) AS MaxStatus FROM Rooms WHERE RoomID = ? AND Status != 'Guided'`;
-        db.get(getMaxStatusSql, [roomID], function (err, result) {
+        const getMaxStatusSql = `
+            SELECT Status 
+            FROM Rooms 
+            WHERE RoomID = ? 
+            ORDER BY CAST(Status AS INTEGER) DESC
+        `;
+
+        db.all(getMaxStatusSql, [roomID], function (err, rows) {
             if (err) {
-                console.error('Error retrieving max status', err.message);
+                console.error('Error retrieving statuses', err.message);
                 db.run('ROLLBACK');
                 return res.status(500).json({ success: false, message: 'Database error' });
             }
 
             let nextStatus;
-            if (result.MaxStatus === null) {
-                // 'Guided' 以外のステータスがない場合は 2 を設定
-                nextStatus = '2';
+            const hasGuidedOrStarted = rows.some(row => row.Status === 'Guided' || row.Status === 'Started');
+            const numericStatuses = rows
+                .map(row => parseInt(row.Status))
+                .filter(status => !isNaN(status));
+
+            if (hasGuidedOrStarted) {
+                // If there is a Guided or Started status, start from 2
+                nextStatus = numericStatuses.length > 0 ? (Math.max(...numericStatuses) + 1).toString() : '2';
             } else {
-                // MaxStatus が存在する場合はそれに +1 した値を次のステータスにする
-                const currentStatus = result.MaxStatus || 0;
-                nextStatus = (currentStatus + 1).toString();
+                // If no Guided or Started status exists, start from 1
+                nextStatus = numericStatuses.length > 0 ? (Math.max(...numericStatuses) + 1).toString() : '1';
             }
 
             const addRoomSql = `
@@ -282,6 +303,7 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
     }
 
 });
+
 
 
 //! the pathname above is long!
