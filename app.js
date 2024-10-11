@@ -8,6 +8,7 @@ var cors = require('cors');
 const readline = require('readline');
 //& module require zone
 
+//更新コミット
 var app = express(); // define app
 app.disable('etag'); // Disable cookie holding
 
