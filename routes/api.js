@@ -164,6 +164,10 @@ router.post('/adminui/regChallenge/auto', function (req, res) {
             case 4:
                 requiredQuestions = 1;
                 break;
+            case "5":
+            case 5:
+                requiredQuestions = 0;
+                break;
             default:
                 db.run('ROLLBACK');
                 return res.status(400).json({ success: false, message: 'Invalid difficulty level' });
@@ -431,6 +435,9 @@ router.get('/adminui/groups/:GroupId/getCertificate', (req, res) => {
                 case 4:
                     difficulty = "超級"
                     break;
+                case 5:
+                    difficulty = "無理ゲー"
+                    break;
             }
             const date = new Date();
             const d = ('0' + date.getDate()).slice(-2);
@@ -449,6 +456,8 @@ router.get('/adminui/groups/:GroupId/getCertificate', (req, res) => {
                     console.error('Error retrieving clear times', err.message, err.stack);
                     return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                 }
+                console.log(Challengerow)
+                console.log(Challengerow.ElapsedTime)
                 let clearTime = formatElapsedTime(Challengerow.ElapsedTime)
 
 
@@ -588,6 +597,9 @@ router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
                 case 4:
                     difficulty = "超級"
                     break;
+                case 5:
+                    difficulty = "無理ゲー"
+                    break;
             }
             const date = new Date();
             const d = ('0' + date.getDate()).slice(-2);
@@ -606,6 +618,7 @@ router.get('/adminui/groups/:GroupId/getCertificate/re', (req, res) => {
                     console.error('Error retrieving clear times', err.message, err.stack);
                     return res.status(500).json({ success: false, message: 'Database error', error: err.stack });
                 }
+                console.log(Challengerow.ElapsedTime)
                 let clearTime = formatElapsedTime(Challengerow.ElapsedTime)
 
 
@@ -795,20 +808,22 @@ router.post('/client/answer/register', function (req, res) {
     if (!GroupId || !QuestionId || !Result) {
         return res.status(400).json({ success: false, message: 'Invalid data' });
     }
-
-    const updateAnsweredQuestionSql = `
+    if (QuestionId !== "lv5_q1") {
+        const updateAnsweredQuestionSql = `
         INSERT INTO AnsweredQuestions(GroupId, QuestionId, Result, ChallengerAnswer)
         VALUES (?, ?, ?, ?)
     `;
-    const updateAnsweredQuestionParams = [GroupId, QuestionId, Result, ChallengerAnswer];
+        const updateAnsweredQuestionParams = [GroupId, QuestionId, Result, ChallengerAnswer];
 
-    db.run(updateAnsweredQuestionSql, updateAnsweredQuestionParams, function (err) {
-        if (err) {
-            console.error('Error updating AnsweredQuestion', err.message);
-            return res.status(500).json({ success: false, message: 'Database error' });
-        }
-    });
-    if (Result == "Collect") {
+        db.run(updateAnsweredQuestionSql, updateAnsweredQuestionParams, function (err) {
+            if (err) {
+                console.error('Error updating AnsweredQuestion', err.message);
+                return res.status(500).json({ success: false, message: 'Database error' });
+            }
+        });
+    }
+
+    if (Result == "Correct") {
         const updateCollectCountSql = `
         UPDATE Questions
         SET CollectCount = CollectCount + 1
